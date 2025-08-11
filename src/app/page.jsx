@@ -9,7 +9,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 1",
     focus: "Jungle Animals - Short a",
-    position: { bottom: "6%", right: "50%" },
+    position: { bottom: "3%", right: "30%" },
     completed: true,
     stars: 2,
     score: 75,
@@ -20,7 +20,7 @@ const curriculumData = [
     type: "lesson", 
     title: "Lesson 2",
     focus: "Farm Friends - Short e",
-    position: { bottom: "10%", right: "35%" },
+    position: { bottom: "6%", right: "48%" },
     completed: true,
     stars: 3,
     score: 95,
@@ -31,7 +31,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 3",
     focus: "Zoo Day - Short i",
-    position: { bottom: "15%", left: "20%" },
+    position: { bottom: "9%", left: "73%" },
     completed: false,
     stars: 0,
     unlocked: true
@@ -41,7 +41,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 4",
     focus: "Animal Fun Review",
-    position: { bottom: "20%", right: "30%" },
+    position: { bottom: "12%", right: "38%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -53,7 +53,7 @@ const curriculumData = [
     type: "quiz",
     title: "Quiz 1",
     focus: "Unit 1 Checkpoint",
-    position: { bottom: "25%", left: "50%" },
+    position: { bottom: "6%", left: "34%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -65,7 +65,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 5",
     focus: "Forest Fun - Short o",
-    position: { bottom: "30%", left: "25%" },
+    position: { bottom: "6%", left: "16%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -75,7 +75,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 6",
     focus: "Muddy Fun - Short u",
-    position: { bottom: "35%", right: "25%" },
+    position: { bottom: "14%", right: "59%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -85,7 +85,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 7",
     focus: "Rainy Day - Blends",
-    position: { bottom: "40%", left: "30%" },
+    position: { bottom: "20%", left: "50%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -95,7 +95,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 8",
     focus: "Unit 2 Review",
-    position: { bottom: "45%", right: "35%" },
+    position: { bottom: "20%", right: "15%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -107,7 +107,7 @@ const curriculumData = [
     type: "quiz",
     title: "Quiz 2",
     focus: "Unit 2 Checkpoint",
-    position: { bottom: "50%", left: "45%" },
+    position: { bottom: "25%", left: "88%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -119,7 +119,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 9",
     focus: "Windy Walk - Review",
-    position: { bottom: "55%", left: "25%" },
+    position: { bottom: "30%", left: "87%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -129,7 +129,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 10",
     focus: "Sunny Streets - Long a",
-    position: { bottom: "60%", right: "40%" },
+    position: { bottom: "30%", right: "32%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -139,7 +139,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 11",
     focus: "Home Helpers - Long i",
-    position: { bottom: "65%", left: "35%" },
+    position: { bottom: "24%", left: "40%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -149,7 +149,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 12",
     focus: "Final Review",
-    position: { bottom: "70%", right: "30%" },
+    position: { bottom: "32%", right: "62%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -161,7 +161,7 @@ const curriculumData = [
     type: "quiz",
     title: "Quiz 3",
     focus: "Unit 3 Checkpoint",
-    position: { bottom: "75%", left: "50%" },
+    position: { bottom: "35%", left: "48%" },
     completed: false,
     stars: 0,
     unlocked: false
@@ -173,7 +173,7 @@ const curriculumData = [
     type: "reward",
     title: "🏆 Reward!",
     focus: "Congratulations!",
-    position: { bottom: "80%", left: "50%" },
+    position: { bottom: "40%", left: "48%" },
     completed: false,
     stars: 0,
     unlocked: false
