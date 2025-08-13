@@ -8,7 +8,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 1",
     focus: "Jungle Animals - Short a",
-    svgPosition: { x: 352, y: 1050 }, // Bottom right
+    svgPosition: { x:490, y: 1090 }, // Bottom right
     completed: true,
     stars: 2,
     score: 75,
@@ -19,7 +19,7 @@ const curriculumData = [
     type: "lesson", 
     title: "Lesson 2",
     focus: "Farm Friends - Short e",
-    svgPosition: { x: 500, y: 1080 }, // Moving up
+    svgPosition: { x: 352, y: 1050 }, // Moving up
     completed: true,
     stars: 3,
     score: 95,
@@ -30,9 +30,10 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 3",
     focus: "Zoo Day - Short i",
-    svgPosition: { x: 200, y: 1050 }, // Left curve
-    completed: false,
-    stars: 0,
+    svgPosition: { x: 480, y: 960 }, // Left curve
+    completed: true,
+    stars: 3,
+    score: 75,
     unlocked: true
   },
   {
@@ -40,7 +41,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 4",
     focus: "Animal Fun Review",
-    svgPosition: { x: 450, y: 1000 },
+    svgPosition: { x: 600, y: 870 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -50,7 +51,7 @@ const curriculumData = [
     type: "quiz",
     title: "Quiz 1",
     focus: "Unit 1 Checkpoint",
-    svgPosition: { x: 300, y: 950 },
+    svgPosition: { x: 710, y: 750 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -60,7 +61,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 5",
     focus: "Forest Fun - Short o",
-    svgPosition: { x: 150, y: 900 },
+    svgPosition: { x: 550, y: 700 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -70,7 +71,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 6",
     focus: "Muddy Fun - Short u",
-    svgPosition: { x: 550, y: 850 },
+    svgPosition: { x: 410, y: 870 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -80,7 +81,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 7",
     focus: "Rainy Day - Blends",
-    svgPosition: { x: 350, y: 800 },
+    svgPosition: { x: 260, y: 1020 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -90,7 +91,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 8",
     focus: "Unit 2 Review",
-    svgPosition: { x: 600, y: 750 },
+    svgPosition: { x: 140, y: 850 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -100,7 +101,7 @@ const curriculumData = [
     type: "quiz",
     title: "Quiz 2",
     focus: "Unit 2 Checkpoint",
-    svgPosition: { x: 100, y: 700 },
+    svgPosition: { x: 310, y: 650 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -110,7 +111,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 9",
     focus: "Windy Walk - Review",
-    svgPosition: { x: 650, y: 650 },
+    svgPosition: { x: 650, y: 600 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -120,7 +121,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 10",
     focus: "Sunny Streets - Long a",
-    svgPosition: { x: 250, y: 600 },
+    svgPosition: { x: 680, y: 320 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -130,7 +131,7 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 11",
     focus: "Home Helpers - Long i",
-    svgPosition: { x: 450, y: 550 },
+    svgPosition: { x: 440, y: 460 },
     completed: false,
     stars: 0,
     unlocked: false
@@ -140,27 +141,18 @@ const curriculumData = [
     type: "lesson",
     title: "Lesson 12",
     focus: "Final Review",
-    svgPosition: { x: 200, y: 500 },
+    svgPosition: { x: 240, y: 340 },
     completed: false,
     stars: 0,
     unlocked: false
   },
-  {
-    id: "quiz3",
-    type: "quiz",
-    title: "Quiz 3",
-    focus: "Unit 3 Checkpoint",
-    svgPosition: { x: 500, y: 450 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
+
   {
     id: "reward",
     type: "reward",
     title: "🏆 Reward!",
     focus: "Congratulations!",
-    svgPosition: { x: 400, y: 350 },
+    svgPosition: { x: 385, y: 90 },
     completed: false,
     stars: 0,
     unlocked: false
