@@ -1,14 +1,25 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 // Curriculum data with SVG coordinates (800x1200 viewBox)
 const curriculumData = [
+  {
+    id: "get-started",
+    type: "start",
+    title: "Get Started",
+    focus: "Sign up to begin",
+    svgPosition: { x: 660, y: 1140 },
+    completed: false,
+    stars: 0,
+    unlocked: true // Always accessible for new users
+  },
   {
     id: 1,
     type: "lesson",
     title: "Lesson 1",
     focus: "Jungle Animals - Short a",
-    svgPosition: { x:490, y: 1090 }, // Bottom right
+    svgPosition: { x:490, y: 1100 }, // Bottom right
     completed: true,
     stars: 2,
     score: 75,
@@ -162,27 +173,39 @@ const curriculumData = [
 // Fixed Navigation Buttons Component
 const NavigationButtons = () => {
   return (
-    <div className="fixed left-4 top-20 z-50 flex flex-col gap-3">
-      <button 
-        className="w-12 h-12 bg-blue-300 hover:bg-blue-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
-        onClick={() => console.log('Profile clicked')}
-      >
-        <span className="text-lg">👤</span>
-      </button>
+    <div className="fixed left-32 top-16 z-50 flex flex-col gap-6">
+      {/* Profile Button Group */}
+      <div className="flex flex-col items-center gap-1">
+        <button 
+          className="w-14 h-14 bg-blue-300 hover:bg-blue-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
+          onClick={() => console.log('Profile clicked')}
+        >
+          <span className="text-lg">👤</span>
+        </button>
+        <span className="text-sm font-medium text-gray-700">Name</span>
+      </div>
       
-      <button 
-        className="w-12 h-12 bg-green-300 hover:bg-green-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
-        onClick={() => console.log('Progress clicked')}
-      >
-        <span className="text-lg">📊</span>
-      </button>
+      {/* Progress Button Group */}
+      <div className="flex flex-col items-center gap-1">
+        <button 
+          className="w-14 h-14 bg-green-300 hover:bg-green-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
+          onClick={() => console.log('Progress clicked')}
+        >
+          <span className="text-lg">📊</span>
+        </button>
+        <span className="text-sm font-medium text-gray-700">Progress</span>
+      </div>
       
-      <button 
-        className="w-12 h-12 bg-purple-300 hover:bg-purple-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
-        onClick={() => console.log('Details clicked')}
-      >
-        <span className="text-lg">📋</span>
-      </button>
+      {/* Details Button Group */}
+      <div className="flex flex-col items-center gap-1">
+        <button 
+          className="w-14 h-14 bg-purple-300 hover:bg-purple-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
+          onClick={() => console.log('Details clicked')}
+        >
+          <span className="text-lg">📋</span>
+        </button>
+        <span className="text-sm font-medium text-gray-700">Details</span>
+      </div>
     </div>
   );
 };
@@ -190,6 +213,9 @@ const NavigationButtons = () => {
 // True SVG-based roadmap component - 70% width and no bottom space
 const SVGRoadmap = ({ curriculum, onClick }) => {
   const getNodeColor = (item) => {
+    if (item.type === "start") {
+      return "#22C55E"; // Green color for get started
+    }
     if (item.type === "reward") {
       if (!item.unlocked) return "#FCD34D";
       return "#F59E0B";
@@ -251,27 +277,49 @@ const SVGRoadmap = ({ curriculum, onClick }) => {
                 </g>
               )}
               
-              {/* Main lesson circle */}
-              <circle
-                cx={x}
-                cy={y}
-                r="20"
-                fill={getNodeColor(item)}
-                stroke="white"
-                strokeWidth="3"
-                className={`${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'} transition-all duration-200`}
-                style={{ 
-                  opacity: isClickable ? 1 : 0.6,
-                  filter: isClickable ? 'none' : 'grayscale(0.5)'
-                }}
-                onClick={isClickable ? () => onClick(item) : undefined}
-              />
+              {/* Main lesson circle or start button rectangle */}
+              {item.type === "start" ? (
+                // Rectangle for start button
+                <rect
+                  x={x - 50}          // x position (center - half width)
+                  y={y - 18}          // y position (center - half height)
+                  width="100"         // Button width
+                  height="36"         // Button height
+                  rx="18"             // Corner radius for rounded corners
+                  ry="18"             // Corner radius for rounded corners
+                  fill={getNodeColor(item)}
+                  stroke="white"
+                  strokeWidth="3"
+                  className={`${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'} transition-all duration-200`}
+                  style={{ 
+                    opacity: isClickable ? 1 : 0.6,
+                    filter: isClickable ? 'none' : 'grayscale(0.5)'
+                  }}
+                  onClick={isClickable ? () => onClick(item) : undefined}
+                />
+              ) : (
+                // Circle for all other items (lessons, quizzes, rewards)
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="22"
+                  fill={getNodeColor(item)}
+                  stroke="white"
+                  strokeWidth="3"
+                  className={`${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'} transition-all duration-200`}
+                  style={{ 
+                    opacity: isClickable ? 1 : 0.6,
+                    filter: isClickable ? 'none' : 'grayscale(0.5)'
+                  }}
+                  onClick={isClickable ? () => onClick(item) : undefined}
+                />
+              )}
               
               {/* Lesson number or icon */}
               <text
                 x={x}
                 y={y + 1}
-                fontSize="16"
+                fontSize={item.type === "start" ? "13" : "16"}  // Smaller font for start button
                 fontWeight="bold"
                 fill="white"
                 textAnchor="middle"
@@ -279,21 +327,40 @@ const SVGRoadmap = ({ curriculum, onClick }) => {
                 className={isClickable ? 'cursor-pointer' : 'cursor-not-allowed'}
                 onClick={isClickable ? () => onClick(item) : undefined}
               >
-                {item.type === "reward" ? "🏆" : item.type === "quiz" ? "📝" : item.id}
+                {item.type === "start" ? "Get Started" :  // Clean text without emoji
+                 item.type === "reward" ? "🏆" : 
+                 item.type === "quiz" ? "📝" : 
+                 item.id}
               </text>
               
-              {/* Hover effect circle */}
+              {/* Hover effect circle or rectangle */}
               {isClickable && (
-                <circle
-                  cx={x}
-                  cy={y}
-                  r="20"
-                  fill="transparent"
-                  stroke="transparent"
-                  strokeWidth="3"
-                  className="hover:stroke-yellow-300 hover:stroke-4 transition-all duration-200 cursor-pointer"
-                  onClick={() => onClick(item)}
-                />
+                item.type === "start" ? (
+                  <rect
+                    x={x - 50}
+                    y={y - 18}
+                    width="100"
+                    height="36"
+                    rx="18"
+                    ry="18"
+                    fill="transparent"
+                    stroke="transparent"
+                    strokeWidth="3"
+                    className="hover:stroke-yellow-300 hover:stroke-4 transition-all duration-200 cursor-pointer"
+                    onClick={() => onClick(item)}
+                  />
+                ) : (
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="22"
+                    fill="transparent"
+                    stroke="transparent"
+                    strokeWidth="3"
+                    className="hover:stroke-yellow-300 hover:stroke-4 transition-all duration-200 cursor-pointer"
+                    onClick={() => onClick(item)}
+                  />
+                )
               )}
             </g>
           );
@@ -305,6 +372,7 @@ const SVGRoadmap = ({ curriculum, onClick }) => {
 
 // Main Component
 export default function HomePage() {
+  const router = useRouter();
   const [curriculum, setCurriculum] = useState(curriculumData);
 
   // Scroll to bottom on page load
@@ -324,14 +392,40 @@ export default function HomePage() {
       {/* Fixed Navigation Buttons */}
       <NavigationButtons />
       
-      {/* SVG Roadmap - No extra containers */}
-      <SVGRoadmap 
-        curriculum={curriculum}
-        onClick={(clickedItem) => {
-          console.log('Clicked:', clickedItem.title);
-          // Add navigation to lesson pages here
-        }}
-      />
+    // In your HomePage component, update the onClick handler:
+
+    <SVGRoadmap 
+      curriculum={curriculum}
+      onClick={(clickedItem) => {
+        if (clickedItem.type === "start") {        
+          router.push('/sign-up');
+          return;                                  
+        }
+        
+        if (clickedItem.type === "lesson") {
+          // Check if lesson is unlocked
+          if (clickedItem.unlocked || clickedItem.completed) {
+            router.push(`/lesson/${clickedItem.id}`);
+          } else {
+            // Show locked lesson message
+            alert('Complete previous lessons to unlock this one!');
+          }
+          return;
+        }
+        
+        if (clickedItem.type === "quiz") {
+          // Handle checkpoint quizzes
+          if (clickedItem.unlocked || clickedItem.completed) {
+            router.push(`/lesson/${clickedItem.id}`);
+          } else {
+            alert('Complete the unit lessons to unlock this quiz!');
+          }
+          return;
+        }
+        
+        console.log('Clicked:', clickedItem.title);
+      }}
+    />
     </div>
   );
 }
