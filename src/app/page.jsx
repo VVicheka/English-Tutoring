@@ -391,8 +391,6 @@ export default function HomePage() {
     <div className='min-h-screen bg-sky-100'>
       {/* Fixed Navigation Buttons */}
       <NavigationButtons />
-      
-    // In your HomePage component, update the onClick handler:
 
     <SVGRoadmap 
       curriculum={curriculum}
