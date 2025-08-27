@@ -88,17 +88,17 @@ export default function SignIn() {
     <div className="min-h-screen bg-blue-100">
       <div className='flex items-center justify-center min-h-screen'>
 
-        <div className='hidden lg:block'>
+        {/* <div className='hidden lg:block'>
           <Image 
             src="/boy_student.png"
             alt="boy student"
             width={352}
             height={352}
           />
-        </div>
+        </div> */}
 
         <div className='bg-white rounded-lg p-8 shadow-lg w-96'>
-          <h2 className='font-bold text-lg mb-4'>Login to your account</h2>
+          <h2 className='font-bold text-lg mb-4'>Sign in to your account</h2>
 
           <form onSubmit={handleSubmit}>
             <div>
@@ -129,7 +129,7 @@ export default function SignIn() {
             </div>
 
             <button type="submit" className='bg-amber-400 hover:bg-amber-500 p-2 rounded-md mb-4 w-full'>
-              {isLoading ? 'Logging in...' : 'Login Now'}
+              {isLoading ? 'Singing in...' : 'Sign in Now'}
             </button>
           </form>
           
@@ -147,7 +147,7 @@ export default function SignIn() {
             </Link>
           </div>
         </div>
-
+{/* 
         <div className='hidden lg:block'>
           <Image 
             src="/boy_student.png"
@@ -155,18 +155,18 @@ export default function SignIn() {
             width={352}
             height={352}
           />
-        </div>
+        </div> */}
 
       </div>
 
-      <div className='absolute bottom-0 w-full flex justify-center'>
+      {/* <div className='absolute bottom-0 w-full flex justify-center'>
         <Image 
           src="/boy_student.png"
           alt='cheering student'
           width={100}
           height={100}
         />
-      </div>
+      </div> */}
 
     </div>
   )
