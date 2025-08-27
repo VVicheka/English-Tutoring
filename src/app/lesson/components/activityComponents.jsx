@@ -1,4 +1,4 @@
-// Updated ActivityComponents.jsx - Renamed activities
+// Updated ActivityComponents.jsx - No WrapUp, Practice is only Matching
 import { useState, useEffect } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
 import { 
@@ -6,8 +6,10 @@ import {
   SpeakableSentence, 
   SpeakableChant, 
   SpeakableStory 
-} from './speakableComponents';
-import { useTextToSpeech } from './useTextToSpeech';
+} from './SpeakableComponents';
+import { DragableMatchingActivity } from './DragableMatchingActivity';
+import { LetterConnectionActivity } from './LetterConnectionActivity';
+import { CreativeQuizActivity } from './CreativeQuizActivity';
 
 // Fixed WarmUp Activity
 export const WarmUpActivity = ({ content, autoRead = false }) => {
@@ -91,10 +93,28 @@ export const WarmUpActivity = ({ content, autoRead = false }) => {
           </div>
           
           {/* Direction */}
-          <div>
+          <div 
+            className="cursor-pointer hover:text-blue-600 transition-colors duration-200"
+            onClick={handleDirectionClick}
+          >
             <p className="text-lg md:text-xl text-gray-600 italic">
               {content.direction}
+              <span className="ml-3 text-lg">🔈</span>
             </p>
+          </div>
+          
+          {/* Status Messages */}
+          <div className="mt-6">
+            {autoRead && hasAutoPlayed && (
+              <div className="text-sm text-green-600">
+                ✨ Welcome! The chant was read automatically
+              </div>
+            )}
+            {autoRead && !isSupported && (
+              <div className="text-sm text-orange-600">
+                ⚠️ Speech not supported - click the chant to try reading it
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -113,6 +133,7 @@ export const VocabularyActivity = ({ content }) => (
             key={index}
             word={wordItem.word}
             emoji={wordItem.emoji}
+            instruction={wordItem.instruction}
             className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 md:p-6 text-center"
           />
         ))}
@@ -121,65 +142,21 @@ export const VocabularyActivity = ({ content }) => (
   </div>
 );
 
-// Story Activity with Speech
+// Story Activity - Fixed layout
 export const StoryActivity = ({ content }) => (
-  <div className="bg-white rounded-xl shadow-lg p-8 max-w-3xl mx-auto">
-    <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
-    <SpeakableStory 
-      sentences={content.sentences}
-      encouragement={content.encouragement}
-    />
-  </div>
-);
-
-// Practice Activity with Speech  
-export const PracticeActivity = ({ content }) => (
-  <div className="bg-white rounded-xl shadow-lg p-8 max-w-4xl mx-auto">
-    <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
-    
-    {/* Activity A - Matching with Speech */}
-    <div className="mb-8 bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
-      <h3 className="text-xl font-bold text-purple-800 mb-4">{content.activityA.title}</h3>
-      <SpeakableSentence 
-        sentence={content.activityA.instruction}
-        className="text-purple-600 mb-4 italic"
+  <div className="h-full flex items-center justify-center p-4">
+    <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-5xl max-h-full overflow-y-auto">
+      <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
+      <SpeakableStory 
+        sentences={content.sentences}
+        encouragement={content.encouragement}
       />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {content.activityA.pairs.map((pair, index) => (
-          <SpeakableWord
-            key={index}
-            word={pair.word}
-            emoji={pair.emoji}
-            instruction=""
-            className="bg-white border border-purple-300 rounded-lg p-4 text-center"
-          />
-        ))}
-      </div>
-    </div>
-
-    {/* Activity B - Fill-in-the-Blank with Speech */}
-    <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-6">
-      <h3 className="text-xl font-bold text-orange-800 mb-4">{content.activityB.title}</h3>
-      <SpeakableSentence 
-        sentence={content.activityB.instruction}
-        className="text-orange-600 mb-4 italic"
-      />
-      <div className="space-y-3">
-        {content.activityB.questions.map((question, index) => (
-          <SpeakableFillBlank
-            key={index}
-            sentence={question.sentence}
-            answer={question.answer}
-            index={index}
-          />
-        ))}
-      </div>
     </div>
   </div>
 );
 
-// Matching Activity - For activityA (drag & drop)
-export const MatchingActivity = ({ content }) => {
+// Practice Activity - ONLY MATCHING (no tabs needed)
+export const PracticeActivity = ({ content }) => {
   return (
     <div className="h-full">
       <DragableMatchingActivity content={content} />
@@ -187,131 +164,61 @@ export const MatchingActivity = ({ content }) => {
   );
 };
 
-// Fill-in Words Activity - For activityB (letter connection)
+// Fill-in Words Activity - NEW separate activity
 export const FillWordsActivity = ({ content }) => {
   return (
-    <div className={`bg-white border border-orange-300 rounded p-3 ${className}`}>
-      <p 
-        className={`text-lg cursor-pointer hover:bg-orange-50 rounded p-1 transition-all duration-200 ${
-          isSpeaking ? 'bg-orange-100 text-orange-800' : ''
-        }`}
-        onClick={handleSentenceClick}
-      >
-        {sentence}
-        {isSpeaking && <span className="ml-2 text-orange-600 animate-pulse">🔊</span>}
-      </p>
-      
-      <div className="mt-2 flex items-center space-x-2">
-        <span className="text-sm text-gray-500">Answer:</span>
-        <span 
-          className="text-sm font-semibold text-green-600 cursor-pointer hover:text-green-700 underline"
-          onClick={handleAnswerClick}
-        >
-          {answer} 🔈
-        </span>
-      </div>
+    <div className="h-full">
+      <LetterConnectionActivity content={content} />
     </div>
   );
 };
 
-// Quiz Activity (existing code with some speech features)
-export const QuizActivity = ({ content }) => (
-  <div className="bg-white rounded-xl shadow-lg p-8 max-w-4xl mx-auto">
-    <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
-    
-    {content.type === 'multiple-choice' ? (
-      // Checkpoint Quiz
-      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">
-        <SpeakableSentence 
-          sentence={content.instruction}
-          className="text-red-600 mb-6 italic text-center"
-        />
-        <div className="space-y-6">
-          {content.questions.map((question, index) => (
-            <div key={index} className="bg-white border border-red-300 rounded-lg p-4">
-              <SpeakableSentence 
-                sentence={`${index + 1}. ${question.question}`}
-                className="text-lg font-semibold mb-3"
-              />
-              <div className="space-y-2">
-                {question.options.map((option, optionIndex) => (
-                  <label key={optionIndex} className="flex items-center space-x-2 cursor-pointer">
-                    <input type="radio" name={`question-${index}`} value={option} className="text-red-500" />
-                    <span 
-                      className={`cursor-pointer hover:text-blue-600 ${optionIndex === question.correctIndex ? 'font-semibold text-green-600' : ''}`}
-                      onClick={() => {
-                        const { speak } = useTextToSpeech();
-                        speak(option, { rate: 0.8 });
-                      }}
-                    >
-                      {option} 🔈
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ) : (
-      // Character Matching Quiz
-      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">
-        <SpeakableSentence 
-          sentence={content.instruction}
-          className="text-red-600 mb-6 italic text-center"
-        />
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Characters */}
-          <div>
-            <h3 className="text-lg font-bold text-red-800 mb-4">Characters:</h3>
-            <div className="space-y-3">
-              {content.characters.map((character, index) => (
-                <SpeakableSentence
-                  key={index}
-                  sentence={character.name}
-                  className="bg-white border border-red-300 rounded-lg p-3 flex items-center space-x-3"
-                  speechOptions={{ rate: 0.8 }}
-                />
-              ))}
-            </div>
-          </div>
-          
-          {/* Actions */}
-          <div>
-            <h3 className="text-lg font-bold text-red-800 mb-4">Actions:</h3>
-            <div className="space-y-3">
-              {content.actions.map((action, index) => (
-                <SpeakableSentence
-                  key={index}
-                  sentence={action}
-                  className="bg-white border border-red-300 rounded-lg p-3"
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
-  </div>
-);
+// Quiz Activity - Fixed layout
+export const QuizActivity = ({ content }) => {
+  const { speak } = useTextToSpeech();
 
-// Wrap-Up Activity with Speech
-export const WrapUpActivity = ({ content }) => (
-  <div className="bg-white rounded-xl shadow-lg p-8 max-w-2xl mx-auto">
-    <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
-    <div className="bg-pink-50 border-2 border-pink-200 rounded-lg p-6 text-center">
-      <SpeakableChant 
-        chant={content.chant}
-        direction={content.instruction}
-      />
-      <div className="border-t border-pink-300 pt-4 mt-4">
-        <p className="text-pink-700 font-semibold">Homework:</p>
-        <SpeakableSentence 
-          sentence={content.homework}
-          className="text-gray-600"
-        />
+  if (content.type === 'multiple-choice') {
+    // Checkpoint Quiz - Better layout
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-5xl max-h-full overflow-y-auto">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
+          
+          <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">
+            <SpeakableSentence 
+              sentence={content.instruction}
+              className="text-red-600 mb-6 italic text-center text-lg"
+            />
+            
+            <div className="space-y-4 md:space-y-6">
+              {content.questions.map((question, index) => (
+                <div key={index} className="bg-white border border-red-300 rounded-lg p-4">
+                  <SpeakableSentence 
+                    sentence={`${index + 1}. ${question.question}`}
+                    className="text-base md:text-lg font-semibold mb-3"
+                  />
+                  <div className="space-y-2">
+                    {question.options.map((option, optionIndex) => (
+                      <label key={optionIndex} className="flex items-center space-x-2 cursor-pointer">
+                        <input type="radio" name={`question-${index}`} value={option} className="text-red-500" />
+                        <span 
+                          className={`cursor-pointer hover:text-blue-600 text-sm md:text-base ${optionIndex === question.correctIndex ? 'font-semibold text-green-600' : ''}`}
+                          onClick={() => speak(option, { rate: 0.8 })}
+                        >
+                          {option} 🔈
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-);
+    );
+  } else {
+    // Character Matching Quiz - Use creative format
+    return <CreativeQuizActivity content={content} />;
+  }
+};

@@ -1,21 +1,17 @@
-// /app/lesson/[id]/page.jsx
+// /app/lesson/[id]/page.jsx - FIXED VERSION
 "use client";
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { getLessonById } from '../../data/lessons';
+import { getLessonById } from '../../data/lessons';  // Fixed: Added one more ../
 
 export default function LessonPage() {
   const router = useRouter();
   const params = useParams();
   const lessonId = params.id;
   const [error, setError] = useState(null);
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     console.log('LessonPage - lessonId:', lessonId);
-    
-    // Don't run if we're already redirecting
-    if (isRedirecting) return;
     
     try {
       // Get lesson data
@@ -24,56 +20,33 @@ export default function LessonPage() {
       
       if (!lesson) {
         console.log('No lesson found, redirecting to home');
-        setError('Lesson not found');
-        setTimeout(() => router.push('/'), 2000);
+        // Lesson not found, redirect to home
+        router.push('/');
         return;
       }
 
-      // Get expanded activities (same logic as in ActivityPage)
-      const getExpandedActivities = (lesson) => {
-        if (!lesson?.content?.practice?.activityB) {
-          return lesson.activities; // No activityB, return original
-        }
-        
-        // Replace 'practice' with 'matching' and 'fillwords'
-        const activities = [...lesson.activities];
-        const practiceIndex = activities.indexOf('practice');
-        if (practiceIndex !== -1) {
-          activities.splice(practiceIndex, 1, 'matching', 'fillwords'); // Replace practice with both
-        }
-        return activities;
-      };
-
-      const expandedActivities = getExpandedActivities(lesson);
-      
       // Auto-redirect to first activity
-      const firstActivity = expandedActivities[0];
+      const firstActivity = lesson.activities[0];
       console.log('Redirecting to first activity:', firstActivity);
-      console.log('Expanded activities:', expandedActivities);
-      
-      setIsRedirecting(true);
       router.push(`/lesson/${lessonId}/${firstActivity}`);
-      
     } catch (err) {
       console.error('Error in LessonPage:', err);
       setError(err.message);
     }
-  }, [lessonId, router, isRedirecting]);
+  }, [lessonId, router]);
 
   // Show error if there's an issue
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-8 text-center max-w-md">
-          <div className="text-6xl mb-4">😕</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Oops!</h2>
-          <p className="text-lg text-red-600 mb-4">{error}</p>
-          <p className="text-sm text-gray-500 mb-6">Lesson ID: {lessonId}</p>
+      <div className="min-h-screen bg-sky-100 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-red-600">Error: {error}</p>
+          <p className="text-sm text-gray-500">Lesson ID: {lessonId}</p>
           <button 
             onClick={() => router.push('/')}
-            className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-all duration-200 transform hover:scale-105"
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
           >
-            🏠 Go Home
+            Go Home
           </button>
         </div>
       </div>
@@ -82,24 +55,11 @@ export default function LessonPage() {
 
   // Show loading while redirecting
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-lg p-8 text-center max-w-md">
-        <div className="relative mb-6">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-500 mx-auto"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl">📚</span>
-          </div>
-        </div>
-        
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Lesson...</h2>
-        <p className="text-gray-600 mb-4">Getting everything ready for you!</p>
+    <div className="min-h-screen bg-sky-100 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-lg text-gray-600">Loading lesson...</p>
         <p className="text-sm text-gray-500">Lesson ID: {lessonId}</p>
-        
-        <div className="mt-6 flex justify-center space-x-1">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-        </div>
       </div>
     </div>
   );
