@@ -7,7 +7,7 @@ export const lessonData = {
     unit: 1,
     unitTitle: "Animal Fun",
     objective: "I can read short a words and name animals.",
-    activities: ['warmup', 'vocabulary', 'story', 'practice', 'quiz', 'wrapup'],
+    activities: ['warmup', 'vocabulary', 'story', 'practice', 'quiz'],
     
     content: {
       warmup: {
@@ -61,16 +61,20 @@ export const lessonData = {
         type: "character-matching",
         instruction: "Match each animal to one action. You can draw lines.",
         characters: [
-          { name: "Ellie the Elephant", emoji: "🐘" }, { name: "Benny the Bear", emoji: "🐻" },
-          { name: "Lila the Lion", emoji: "🦁" }, { name: "Milo the Monkey", emoji: "🐒" }, { name: "Tina the Tiger", emoji: "🐯" }
+          { name: "Ellie the Elephant", emoji: "🐘" }, 
+          { name: "Benny the Bear", emoji: "🐻" },
+          { name: "Lila the Lion", emoji: "🦁" }, 
+          { name: "Milo the Monkey", emoji: "🐒" }, 
+          { name: "Tina the Tiger", emoji: "🐯" }
         ],
-        actions: ["Found the map", "Sat on the hat", "Flew with the bat", "Played with the cat", "Slept on the mat"]
-      },
-      wrapup: {
-        title: "Wrap-Up",
-        chant: "Hat and bat, cat and mat, Let's read and rhyme just like that!",
-        instruction: "Say the chant to someone at home.",
-        homework: "Draw each word in a tiny booklet."
+        actions: ["Found the map", "Sat on the hat", "Flew with the bat", "Played with the cat", "Slept on the mat"],
+        answers: {
+          "Ellie the Elephant": "Sat on the hat",
+          "Benny the Bear": "Slept on the mat", 
+          "Lila the Lion": "Found the map",
+          "Milo the Monkey": "Played with the cat",
+          "Tina the Tiger": "Flew with the bat"
+        }
       }
     }
   },
@@ -82,7 +86,7 @@ export const lessonData = {
     unit: 1,
     unitTitle: "Animal Fun",
     objective: "I can read short e words and talk about animals.",
-    activities: ['warmup', 'vocabulary', 'story', 'practice', 'quiz', 'wrapup'],
+    activities: ['warmup', 'vocabulary', 'story', 'practice', 'quiz'],
     
     content: {
       warmup: {
@@ -140,12 +144,6 @@ export const lessonData = {
           { name: "Lila the Lion", emoji: "🦁" }, { name: "Milo the Monkey", emoji: "🐒" }, { name: "Tina the Tiger", emoji: "🐯" }
         ],
         actions: ["Slept in the bed", "Wrote with a pen", "Pecked like a hen", "Got caught in a net", "Sat near the red bed"]
-      },
-      wrapup: {
-        title: "Wrap-Up",
-        chant: "Hen and pen, net and bed, Let's say the words in our head!",
-        instruction: "Say the chant to someone at home.",
-        homework: "Draw and label each word on a mini poster."
       }
     }
   },
@@ -157,7 +155,7 @@ export const lessonData = {
     unit: 1,
     unitTitle: "Animal Fun",
     objective: "I can read short i words and tell what I see.",
-    activities: ['warmup', 'vocabulary', 'story', 'practice', 'quiz', 'wrapup'],
+    activities: ['warmup', 'vocabulary', 'story', 'practice', 'quiz'],
     
     content: {
       warmup: {
@@ -215,12 +213,6 @@ export const lessonData = {
           { name: "Lila the Lion", emoji: "🦁" }, { name: "Milo the Monkey", emoji: "🐒" }, { name: "Tina the Tiger", emoji: "🐯" }
         ],
         actions: ["Dropped the fig", "Sat in a bin", "Wore a lid on the head", "Ran after the pig", "Found a fig on the lid"]
-      },
-      wrapup: {
-        title: "Wrap-Up",
-        chant: "Pig in a bin, fig on a lid, Let's read and rhyme like we did!",
-        instruction: "Say the chant to someone at home.",
-        homework: "Make a mini-book with one page for each word."
       }
     }
   },
