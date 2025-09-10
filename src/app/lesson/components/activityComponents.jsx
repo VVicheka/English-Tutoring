@@ -1,15 +1,14 @@
-// Updated ActivityComponents.jsx - No WrapUp, Practice is only Matching
+// Updated ActivityComponents.jsx - With MiniStoryActivity integration
 import { useState, useEffect } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
 import { 
   SpeakableWord, 
   SpeakableSentence, 
-  SpeakableChant, 
-  SpeakableStory 
 } from './SpeakableComponents';
 import { DragableMatchingActivity } from './DragableMatchingActivity';
 import { LetterConnectionActivity } from './LetterConnectionActivity';
 import { CreativeQuizActivity } from './CreativeQuizActivity';
+import { MiniStoryActivity } from './MiniStoryActivity';
 
 // Fixed WarmUp Activity
 export const WarmUpActivity = ({ content, autoRead = false }) => {
@@ -93,28 +92,10 @@ export const WarmUpActivity = ({ content, autoRead = false }) => {
           </div>
           
           {/* Direction */}
-          <div 
-            className="cursor-pointer hover:text-blue-600 transition-colors duration-200"
-            onClick={handleDirectionClick}
-          >
+          <div>
             <p className="text-lg md:text-xl text-gray-600 italic">
               {content.direction}
-              <span className="ml-3 text-lg">🔈</span>
             </p>
-          </div>
-          
-          {/* Status Messages */}
-          <div className="mt-6">
-            {autoRead && hasAutoPlayed && (
-              <div className="text-sm text-green-600">
-                ✨ Welcome! The chant was read automatically
-              </div>
-            )}
-            {autoRead && !isSupported && (
-              <div className="text-sm text-orange-600">
-                ⚠️ Speech not supported - click the chant to try reading it
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -123,59 +104,136 @@ export const WarmUpActivity = ({ content, autoRead = false }) => {
 };
 
 // Vocabulary Activity - Fixed layout
-export const VocabularyActivity = ({ content }) => (
-  <div className="h-full flex items-center justify-center p-4">
-    <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-6xl max-h-full overflow-y-auto">
-      <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-        {content.words.map((wordItem, index) => (
-          <SpeakableWord
-            key={index}
-            word={wordItem.word}
-            emoji={wordItem.emoji}
-            instruction={wordItem.instruction}
-            className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 md:p-6 text-center"
-          />
-        ))}
+export const VocabularyActivity = ({ content }) => {
+  // Add safety check
+  if (!content || !content.words) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-gray-600">Loading vocabulary...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-6xl max-h-full overflow-y-auto">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          {content.words.map((wordItem, index) => (
+            <SpeakableWord
+              key={index}
+              word={wordItem.word}
+              emoji={wordItem.emoji}
+              className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 md:p-6 text-center"
+            />
+          ))}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-// Story Activity - Fixed layout
-export const StoryActivity = ({ content }) => (
-  <div className="h-full flex items-center justify-center p-4">
-    <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-5xl max-h-full overflow-y-auto">
-      <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">{content.title}</h2>
-      <SpeakableStory 
-        sentences={content.sentences}
-        encouragement={content.encouragement}
+// Story Activity - Now using your MiniStoryActivity component
+export const StoryActivity = ({ content, storyPage = 0, onStoryPageChange }) => {
+  // Add safety check
+  if (!content) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-gray-600">Loading story...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className='h-full'>
+      <MiniStoryActivity 
+        content={content} 
+        storyPage={storyPage}
+        onStoryPageChange={onStoryPageChange}
       />
     </div>
-  </div>
-);
+  );
+};
 
-// Practice Activity - ONLY MATCHING (no tabs needed)
-export const PracticeActivity = ({ content }) => {
+// FIXED: Matching Activity - For activityA (drag & drop) - NOW WITH onComplete PROP
+export const MatchingActivity = ({ content, onComplete }) => {
+  // Add safety check
+  if (!content) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-gray-600">Loading matching activity...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full">
-      <DragableMatchingActivity content={content} />
+      <DragableMatchingActivity 
+        content={content} 
+        onComplete={onComplete}
+      />
     </div>
   );
 };
 
-// Fill-in Words Activity - NEW separate activity
-export const FillWordsActivity = ({ content }) => {
+// FIXED: Fill-in Words Activity - For activityB (letter connection) - NOW WITH PROPER PROPS
+export const FillWordsActivity = ({ 
+  content, 
+  currentStep = 0,
+  completedSteps = {},
+  onStepComplete,
+  onComplete 
+}) => {
+  // Add safety check
+  if (!content || !content.activityB) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-gray-600">Loading fill words activity...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full">
-      <LetterConnectionActivity content={content} />
+      <LetterConnectionActivity 
+        content={content}
+        currentStep={currentStep}
+        completedSteps={completedSteps}
+        onStepComplete={onStepComplete}
+        onComplete={onComplete}
+      />
     </div>
   );
 };
 
-// Quiz Activity - Fixed layout
-export const QuizActivity = ({ content }) => {
+// FIXED: Quiz Activity - Now properly handles both types with correct props
+export const QuizActivity = ({ 
+  content,
+  currentStep = 0,
+  completedSteps = {},
+  onStepComplete,
+  onComplete 
+}) => {
   const { speak } = useTextToSpeech();
+
+  // Add safety check
+  if (!content) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-gray-600">Loading quiz...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (content.type === 'multiple-choice') {
     // Checkpoint Quiz - Better layout
@@ -191,14 +249,14 @@ export const QuizActivity = ({ content }) => {
             />
             
             <div className="space-y-4 md:space-y-6">
-              {content.questions.map((question, index) => (
+              {content.questions?.map((question, index) => (
                 <div key={index} className="bg-white border border-red-300 rounded-lg p-4">
                   <SpeakableSentence 
                     sentence={`${index + 1}. ${question.question}`}
                     className="text-base md:text-lg font-semibold mb-3"
                   />
                   <div className="space-y-2">
-                    {question.options.map((option, optionIndex) => (
+                    {question.options?.map((option, optionIndex) => (
                       <label key={optionIndex} className="flex items-center space-x-2 cursor-pointer">
                         <input type="radio" name={`question-${index}`} value={option} className="text-red-500" />
                         <span 
@@ -217,8 +275,30 @@ export const QuizActivity = ({ content }) => {
         </div>
       </div>
     );
+  } else if (content.type === 'character-matching') {
+    // FIXED: Character Matching Quiz - Now with proper props
+    return (
+      <CreativeQuizActivity 
+        content={content}
+        currentStep={currentStep}
+        completedSteps={completedSteps}
+        onStepComplete={onStepComplete}
+        onComplete={onComplete}
+      />
+    );
   } else {
-    // Character Matching Quiz - Use creative format
-    return <CreativeQuizActivity content={content} />;
+    // Fallback for unknown quiz types
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+          <h2 className="text-xl font-bold text-red-600 mb-4">Unknown Quiz Type</h2>
+          <p className="text-gray-600">Quiz type: {content.type || 'undefined'}</p>
+          <p className="text-sm text-gray-500 mt-2">Available types: multiple-choice, character-matching</p>
+        </div>
+      </div>
+    );
   }
 };
+
+// Export CreativeQuizActivity so it can be imported in other files
+export { CreativeQuizActivity };

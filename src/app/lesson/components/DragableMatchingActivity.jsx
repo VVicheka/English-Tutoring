@@ -1,8 +1,7 @@
-// /app/lesson/components/DragableMatchingActivity.jsx - FIXED VERSION
 import { useState, useEffect, useMemo } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
 
-export const DragableMatchingActivity = ({ content }) => {
+export const DragableMatchingActivity = ({ content, onComplete }) => {
   const { speak } = useTextToSpeech();
   
   // Embedded sound generation using Web Audio API
@@ -54,8 +53,8 @@ export const DragableMatchingActivity = ({ content }) => {
       oscillator.frequency.setValueAtTime(150, audioContext.currentTime); // Low frequency
       oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 0.1); // Even lower
       
-      // Quick fade out
-      gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+      // Quick fade out - LOUDER VOLUME
+      gainNode.gain.setValueAtTime(0.5, audioContext.currentTime); // Increased from 0.2 to 0.5
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
       
       oscillator.type = 'sawtooth'; // Harsher buzz sound
@@ -133,6 +132,8 @@ export const DragableMatchingActivity = ({ content }) => {
   const [wrongMatches, setWrongMatches] = useState(new Set());
   const [isCompleted, setIsCompleted] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  // ADDED: Track if completion callback has been called
+  const [completionCalled, setCompletionCalled] = useState(false);
 
   // Load saved progress on mount
   useEffect(() => {
@@ -160,6 +161,11 @@ export const DragableMatchingActivity = ({ content }) => {
           } else {
             setWrongMatches(new Set());
           }
+          
+          // Check if completion was already called
+          if (saved.completionCalled) {
+            setCompletionCalled(true);
+          }
         }
       } catch (error) {
         console.error('Error loading progress:', error);
@@ -170,15 +176,16 @@ export const DragableMatchingActivity = ({ content }) => {
     }
   }, [storageKey]);
 
-  // Save progress whenever state changes (after initial load)
+  // FIXED: Save progress and handle completion
   useEffect(() => {
     if (!hasLoaded || !content?.activityA?.pairs) return;
     
     try {
       const progressData = { 
         dropZones, 
-        correctMatches: Array.from(correctMatches), // Convert Set to Array for storage
-        wrongMatches: Array.from(wrongMatches) // Save wrong matches too
+        correctMatches: Array.from(correctMatches), 
+        wrongMatches: Array.from(wrongMatches),
+        completionCalled
       };
       
       // Save to window object (in-memory storage)
@@ -190,29 +197,45 @@ export const DragableMatchingActivity = ({ content }) => {
         console.log('Saved progress:', progressData);
       }
 
-      // Check if activity is completed
-      const completed = correctMatches.size === content.activityA.pairs.length;
-      if (completed !== isCompleted) {
-        setIsCompleted(completed);
+      // FIXED: Check if all words have been attempted (not just correct)
+      const totalWords = content.activityA.pairs.length;
+      const attemptedWords = new Set([...Object.keys(dropZones)]);
+      const allWordsAttempted = attemptedWords.size === totalWords;
+      const allCorrect = correctMatches.size === totalWords;
+      
+      if (allCorrect !== isCompleted) {
+        setIsCompleted(allCorrect);
         
-        if (completed && !isCompleted) {
-          // Play completion sound/message
+        if (allCorrect && !isCompleted) {
+          // Play completion sound/message for perfect completion
           setTimeout(() => {
             playCorrectSound();
             setTimeout(() => {
-              speak("Excellent! You completed the matching activity!", { rate: 0.8, pitch: 1.3 });
+              speak("Excellent! You completed the matching activity perfectly!", { rate: 0.8, pitch: 1.3 });
             }, 400);
           }, 500);
         }
       }
+
+      // FIXED: Call onComplete when all words have been attempted (not just when all correct)
+      if (allWordsAttempted && !completionCalled && onComplete) {
+        console.log('All words attempted, calling onComplete callback');
+        setCompletionCalled(true);
+        
+        setTimeout(() => {
+          console.log('Calling onComplete callback from DragableMatchingActivity');
+          onComplete();
+        }, allCorrect ? 2000 : 1000); // Longer delay if perfect, shorter if some wrong
+      }
+      
     } catch (error) {
       console.error('Error saving progress:', error);
     }
-  }, [dropZones, correctMatches, wrongMatches, storageKey, content, isCompleted, hasLoaded, speak]);
+  }, [dropZones, correctMatches, wrongMatches, storageKey, content, isCompleted, hasLoaded, speak, onComplete, completionCalled]);
 
   const handleDragStart = (e, word) => {
-    // Don't allow dragging if activity is completed
-    if (isCompleted) {
+    // FIXED: Allow dragging even if activity has wrong answers
+    if (isCompleted && correctMatches.size === content.activityA.pairs.length) {
       e.preventDefault();
       return;
     }
@@ -231,8 +254,8 @@ export const DragableMatchingActivity = ({ content }) => {
   const handleDrop = (e, targetEmoji) => {
     e.preventDefault();
     
-    if (!draggedWord || isCompleted) {
-      console.log('Drop ignored - no dragged word or completed');
+    if (!draggedWord) {
+      console.log('Drop ignored - no dragged word');
       return;
     }
 
@@ -274,10 +297,17 @@ export const DragableMatchingActivity = ({ content }) => {
       }, 300);
       
     } else {
-      // Mark as wrong match and KEEP IT WRONG
+      // Mark as wrong match
       setWrongMatches(prev => {
         const newSet = new Set([...prev, targetEmoji]);
         console.log('New wrong matches:', Array.from(newSet));
+        return newSet;
+      });
+      
+      // Remove from correct matches if it was there
+      setCorrectMatches(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(targetEmoji);
         return newSet;
       });
       
@@ -290,10 +320,8 @@ export const DragableMatchingActivity = ({ content }) => {
 
   const handleWordClick = (word) => {
     console.log('Word clicked:', word);
-    // Only allow clicking if not completed
-    if (!isCompleted) {
-      speak(word, { rate: 0.7, pitch: 1.2 });
-    }
+    // Allow clicking for audio feedback
+    speak(word, { rate: 0.7, pitch: 1.2 });
   };
 
   const handleImageClick = (emoji) => {
@@ -308,6 +336,7 @@ export const DragableMatchingActivity = ({ content }) => {
   console.log('Component state:', {
     hasLoaded,
     isCompleted,
+    completionCalled,
     dropZones,
     correctMatches: Array.from(correctMatches),
     wrongMatches: Array.from(wrongMatches),
@@ -345,16 +374,20 @@ export const DragableMatchingActivity = ({ content }) => {
         <h3 className="text-2xl font-bold text-purple-800 mb-2">{content.activityA.title}</h3>
         <p className="text-purple-600 text-lg italic">{content.activityA.instruction}</p>
         
-        {/* Debug info (remove in production) */}
-        <div className="mt-2 text-xs text-gray-500">
-          Shuffled: {shuffledWords.map(p => p.word).join(', ')}
-        </div>
-        
         {/* Completion status */}
         {isCompleted && (
           <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded-lg">
             <p className="text-green-700 font-semibold flex items-center justify-center">
-              ✅ Activity Completed! Great job!
+              ✅ Perfect! All matches correct!
+            </p>
+          </div>
+        )}
+        
+        {/* ADDED: Show attempt completion status */}
+        {completionCalled && !isCompleted && (
+          <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
+            <p className="text-blue-700 font-semibold flex items-center justify-center">
+              📝 Good try! You've attempted all matches.
             </p>
           </div>
         )}
@@ -380,7 +413,7 @@ export const DragableMatchingActivity = ({ content }) => {
                     correctMatches.has(pair.emoji) 
                       ? 'bg-green-100 border-green-400 text-green-700' 
                       : wrongMatches.has(pair.emoji)
-                        ? 'bg-red-100 border-red-400 text-red-700 animate-pulse'
+                        ? 'bg-red-100 border-red-400 text-red-700'
                         : dropZones[pair.emoji]
                           ? 'bg-yellow-100 border-yellow-400 text-yellow-700'
                           : 'bg-gray-100 border-gray-300 text-gray-500'
@@ -402,30 +435,34 @@ export const DragableMatchingActivity = ({ content }) => {
         {/* Draggable Words - Shuffled order */}
         <div className="bg-white rounded-lg shadow-lg p-6">
           <h4 className="text-lg font-semibold text-center mb-4 text-gray-700">
-            {isCompleted ? "Words matched successfully:" : "Drag the words to match:"}
+            {isCompleted ? "Words matched perfectly:" : completionCalled ? "All words attempted:" : "Drag the words to match:"}
           </h4>
           <div className="flex justify-center space-x-4 flex-wrap gap-2">
             {shuffledWords.map((pair, index) => {
               const isUsed = Object.values(dropZones).includes(pair.word);
               const isCorrectlyPlaced = correctMatches.has(pair.emoji) && dropZones[pair.emoji] === pair.word;
+              const isWronglyPlaced = wrongMatches.has(pair.emoji) && dropZones[pair.emoji] === pair.word;
               
               return (
                 <div
                   key={`shuffled-${pair.word}-${index}`}
-                  draggable={!isUsed && !isCompleted}
+                  draggable={!isUsed || isWronglyPlaced} // FIXED: Allow re-dragging wrong answers
                   onDragStart={(e) => handleDragStart(e, pair.word)}
                   onClick={() => handleWordClick(pair.word)}
                   className={`px-6 py-3 rounded-lg font-semibold text-lg cursor-pointer transition-all ${
-                    isCompleted
+                    isCorrectlyPlaced
                       ? 'bg-green-200 text-green-800 cursor-default'
-                      : isUsed 
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-50' 
-                        : 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 hover:scale-105 shadow-md'
+                      : isWronglyPlaced
+                        ? 'bg-red-200 text-red-800 hover:bg-red-300 shadow-md' // Allow re-dragging
+                        : isUsed 
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-50' 
+                          : 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 hover:scale-105 shadow-md'
                   }`}
                 >
                   {pair.word}
-                  {!isUsed && !isCompleted && <span className="ml-2 text-sm">🔈</span>}
+                  <span className="ml-2 text-sm">🔈</span>
                   {isCorrectlyPlaced && <span className="ml-2">✅</span>}
+                  {isWronglyPlaced && <span className="ml-2">🔄</span>}
                 </div>
               );
             })}
@@ -436,10 +473,23 @@ export const DragableMatchingActivity = ({ content }) => {
         <div className="text-center mt-4">
           <div className="flex items-center justify-center space-x-4">
             <p className="text-lg text-gray-600">
-              Matched: {correctMatches.size} / {content.activityA.pairs.length}
+              Correct: {correctMatches.size} / {content.activityA.pairs.length}
+            </p>
+            <p className="text-lg text-gray-600">
+              Attempted: {Object.keys(dropZones).length} / {content.activityA.pairs.length}
             </p>
             
-            {/* Progress bar */}
+            {/* Progress bar for attempts */}
+            <div className="w-32 bg-gray-200 rounded-full h-3">
+              <div 
+                className="bg-blue-500 h-3 rounded-full transition-all duration-500"
+                style={{ 
+                  width: `${(Object.keys(dropZones).length / content.activityA.pairs.length) * 100}%` 
+                }}
+              ></div>
+            </div>
+            
+            {/* Progress bar for correct matches */}
             <div className="w-32 bg-gray-200 rounded-full h-3">
               <div 
                 className="bg-green-500 h-3 rounded-full transition-all duration-500"
@@ -454,10 +504,16 @@ export const DragableMatchingActivity = ({ content }) => {
             )}
           </div>
           
-          {/* Helpful hint for incomplete activities */}
-          {!isCompleted && correctMatches.size > 0 && (
+          {/* Helpful hints */}
+          {!completionCalled && Object.keys(dropZones).length > 0 && (
             <p className="text-sm text-gray-500 mt-2">
               Keep going! You're doing great! 🌟
+            </p>
+          )}
+          
+          {completionCalled && !isCompleted && (
+            <p className="text-sm text-blue-600 mt-2">
+              Good effort! You can continue to the next activity or try to improve your matches! 🔄
             </p>
           )}
         </div>
