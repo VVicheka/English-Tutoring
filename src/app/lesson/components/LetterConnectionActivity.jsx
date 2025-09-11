@@ -1,4 +1,4 @@
-// Fixed LetterConnectionActivity - With Your Exact Random Logic + State Persistence
+// Fixed LetterConnectionActivity - Random Patterns + State Persistence
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
 
@@ -56,7 +56,7 @@ export const LetterConnectionActivity = ({
     }
   };
 
-  // FIXED: Your exact random logic with diverse placement patterns
+  // Generate letters with diverse placement patterns
   const generateLettersForQuestion = (answer) => {
     const answerLetters = answer.toUpperCase().split('');
     const grid = new Array(9).fill(null);
@@ -106,7 +106,6 @@ export const LetterConnectionActivity = ({
   const [letterPositions, setLetterPositions] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [showHint, setShowHint] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false); // NEW: Track success animation
   
   // Drag state
   const [isDrawing, setIsDrawing] = useState(false);
@@ -153,37 +152,37 @@ export const LetterConnectionActivity = ({
     return positions;
   };
 
-  // FIXED: State persistence and restoration with your random logic
+  // FIXED: State persistence and restoration
   useEffect(() => {
     if (currentQuestion) {
-      // FIXED: Always generate new letters for incomplete steps or when first loading
-      if (!stepData || !stepData.questionLetters) {
-        const newLetters = generateLettersForQuestion(currentQuestion.answer);
-        setQuestionLetters(newLetters);
+      const newLetters = generateLettersForQuestion(currentQuestion.answer, currentStep);
+      setQuestionLetters(newLetters);
+      
+      // FIXED: Restore state for completed steps, reset for new steps
+      if (stepData) {
+        // Step is completed - restore saved state
+        setConnectedLetters(stepData.connectedLetters || []);
         
-        // Generate positions for new letters
-        const positions = generateLetterPositions(newLetters);
-        setLetterPositions(positions);
+        // FIXED: Restore letter positions from saved grid layout
+        if (stepData.questionLetters) {
+          const positions = generateLetterPositions(stepData.questionLetters);
+          setLetterPositions(positions);
+        } else {
+          // Fallback: generate positions from current letters
+          const positions = generateLetterPositions(newLetters);
+          setLetterPositions(positions);
+        }
         
-        // Reset states for new attempt
-        setConnectedLetters([]);
         setDragPath([]);
         setIsProcessing(false);
         setShowHint(false);
-        setShowSuccess(false);
       } else {
-        // Step is completed - restore saved state
-        setQuestionLetters(stepData.questionLetters);
-        setConnectedLetters(stepData.connectedLetters || []);
-        
-        // Restore letter positions from saved grid layout
-        const positions = generateLetterPositions(stepData.questionLetters);
-        setLetterPositions(positions);
-        
+        // Step is not completed - reset for new attempt
+        setConnectedLetters([]);
+        setLetterPositions({});
         setDragPath([]);
         setIsProcessing(false);
-        setShowHint(stepData.showHint || false);
-        setShowSuccess(stepData.isCorrect || false);
+        setShowHint(false);
       }
     }
   }, [currentStep, currentQuestion, stepData]);
@@ -215,7 +214,7 @@ export const LetterConnectionActivity = ({
 
   // Handle drag start
   const handleMouseDown = (letter, event, index) => {
-    if (stepData || isProcessing || showSuccess) return; // Can't interact with completed steps
+    if (stepData || isProcessing) return; // Can't interact with completed steps
     
     setIsDrawing(true);
     setDragStartLetter(letter);
@@ -237,7 +236,7 @@ export const LetterConnectionActivity = ({
 
   // Handle mouse move - track continuous path
   const handleMouseMove = (event) => {
-    if (!isDrawing || !dragStartLetter || stepData || showSuccess) return;
+    if (!isDrawing || !dragStartLetter || stepData) return;
     
     const containerRect = containerRef.current?.getBoundingClientRect();
     if (!containerRect) return;
@@ -322,9 +321,9 @@ export const LetterConnectionActivity = ({
     setDragPath(prev => [...prev, letter]);
   };
 
-  // FIXED: Enhanced step completion with full state saving and line removal
+  // FIXED: Enhanced step completion with full state saving
   const handleMouseUp = () => {
-    if (!isDrawing || !dragStartLetter || stepData || showSuccess) {
+    if (!isDrawing || !dragStartLetter || stepData) {
       resetDragState();
       return;
     }
@@ -344,69 +343,50 @@ export const LetterConnectionActivity = ({
     if (isCorrect) {
       playCorrectSound();
       setShowHint(false);
-      setShowSuccess(true);
       
-      // FIXED: Clear lines immediately when correct
       setTimeout(() => {
-        setConnectedLetters([]);
-        setDragPath([]);
-        setTempLine(null);
-        
         speak(targetWord, { rate: 0.8, pitch: 1.2 });
         
-        // FIXED: Generate new random letters quickly
         setTimeout(() => {
-          const newLetters = generateLettersForQuestion(currentQuestion.answer);
-          setQuestionLetters(newLetters);
+          if (onStepComplete) {
+            // FIXED: Save complete state including grid layout
+            onStepComplete(currentStep, {
+              connectedLetters: dragPath,
+              isCorrect: true,
+              targetWord: targetWord,
+              formedWord: formedWord,
+              questionLetters: questionLetters, // FIXED: Save grid layout
+              letterPositions: { ...letterPositions } // FIXED: Save positions
+            });
+          }
           
-          const newPositions = generateLetterPositions(newLetters);
-          setLetterPositions(newPositions);
+          // Check if this was the last question
+          if (currentStep === totalQuestions - 1) {
+            // Last question completed
+            setTimeout(() => {
+              if (onComplete) {
+                onComplete();
+              }
+            }, 1000);
+          }
           
-          setTimeout(() => {
-            if (onStepComplete) {
-              // Save complete state including new grid layout
-              onStepComplete(currentStep, {
-                connectedLetters: [],
-                isCorrect: true,
-                targetWord: targetWord,
-                formedWord: formedWord,
-                questionLetters: newLetters, // Save new grid layout
-                letterPositions: newPositions, // Save new positions
-                showHint: false,
-                completed: true
-              });
-            }
-            
-            // Check if this was the last question
-            if (currentStep === totalQuestions - 1) {
-              // Last question completed
-              setTimeout(() => {
-                if (onComplete) {
-                  onComplete();
-                }
-              }, 1000);
-            }
-            
-            setIsProcessing(false);
-          }, 500);
-        }, 300); // Quick random generation
-      }, 200); // Immediate line clearing
+          setIsProcessing(false);
+        }, 1500);
+      }, 500);
     } else {
       playWrongSound();
       setShowHint(true);
       
       setTimeout(() => {
         if (onStepComplete) {
-          // Save state even for incorrect attempts
+          // FIXED: Save state even for incorrect attempts
           onStepComplete(currentStep, {
             connectedLetters: dragPath,
             isCorrect: false,
             targetWord: targetWord,
             formedWord: formedWord,
-            questionLetters: questionLetters, // Save grid layout
-            letterPositions: { ...letterPositions }, // Save positions
-            showHint: true,
-            completed: false
+            questionLetters: questionLetters, // FIXED: Save grid layout
+            letterPositions: { ...letterPositions } // FIXED: Save positions
           });
         }
         setIsProcessing(false);
@@ -565,7 +545,7 @@ export const LetterConnectionActivity = ({
                         ? stepData.isCorrect
                           ? 'bg-green-200 text-green-800'
                           : 'bg-gray-200 text-gray-600'
-                        : isProcessing || showSuccess
+                        : isProcessing
                           ? 'bg-gray-200 text-gray-600 cursor-not-allowed'
                           : isHighlighted
                             ? 'bg-orange-500 text-white shadow-lg scale-105'
@@ -580,7 +560,7 @@ export const LetterConnectionActivity = ({
                       boxShadow: isHighlighted ? '0 0 15px rgba(249, 115, 22, 0.6)' : undefined,
                       transform: isHighlighted ? 'scale(1.05)' : undefined,
                       userSelect: 'none',
-                      pointerEvents: (isCompleted || isProcessing || showSuccess) ? 'none' : 'auto'
+                      pointerEvents: (isCompleted || isProcessing) ? 'none' : 'auto'
                     }}
                   >
                     {letter}
@@ -600,19 +580,19 @@ export const LetterConnectionActivity = ({
               </p>
             </div>
             
-            {/* Connection Lines - FIXED: Only show when not completed and not in success state */}
+            {/* Connection Lines - FIXED: Never show lines after completion */}
             <svg className="absolute inset-0 w-full h-full z-10 pointer-events-none">
-              {/* Final drawn path - only show when not completed */}
-              {!isCompleted && !showSuccess && (dragPath.length > 1 || connectedLetters.length > 1) && (
+              {/* Final drawn path - only show during active drawing, not after completion */}
+              {!isCompleted && isDrawing && dragPath.length > 1 && (
                 <polyline
-                  points={(dragPath.length > 1 ? dragPath : connectedLetters)
+                  points={dragPath
                     .map(letter => {
                       const pos = letterPositions[letter];
                       return pos ? `${pos.x},${pos.y}` : null;
                     })
                     .filter(Boolean)
                     .join(" ")}
-                  stroke={showHint ? "red" : "orange"}
+                  stroke="orange"
                   strokeWidth="4"
                   fill="none"
                   strokeLinecap="round"
@@ -620,8 +600,8 @@ export const LetterConnectionActivity = ({
                 />
               )}
 
-              {/* Temp line preview while dragging - only show when not completed */}
-              {!isCompleted && !showSuccess && tempLine && (
+              {/* Temp line preview while dragging - only during active drawing */}
+              {!isCompleted && isDrawing && tempLine && (
                 <line
                   x1={tempLine.x1}
                   y1={tempLine.y1}
