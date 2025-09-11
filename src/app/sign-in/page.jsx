@@ -1,11 +1,10 @@
 "use client";
-import React, {useState} from 'react';
-import Image from 'next/image';
-import {useRouter} from 'next/navigation';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '../lib/supabase'; // Adjust path as needed
 
 export default function SignIn() {
-
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,9 +16,9 @@ export default function SignIn() {
   const validationEmail = (email) => {
     if (email.length === 0) {
       return "Email is required";
-    } else if (!email.includes('@')){
+    } else if (!email.includes('@')) {
       return "Please enter a valid email address with @";
-    } else if (!email.includes('.')){
+    } else if (!email.includes('.')) {
       return "Please enter a valid email address with domain";
     } else {
       return "";
@@ -39,7 +38,6 @@ export default function SignIn() {
   const handlePasswordChange = (e) => {
     const newPassword = e.target.value;
     setPassword(newPassword);
-
     const error = validationPassword(newPassword);
     setPasswordError(error);
   }
@@ -47,15 +45,14 @@ export default function SignIn() {
   const handleEmailChange = (e) => {
     const newEmail = e.target.value;
     setEmail(newEmail);
-
     const error = validationEmail(newEmail);
     setEmailError(error);
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     const emailErr = validationEmail(email);
     const passwordErr = validationPassword(password);
 
@@ -63,40 +60,62 @@ export default function SignIn() {
     setPasswordError(passwordErr);
 
     if (emailErr === "" && passwordErr === "") {
-      console.log("Submitting: ", {email, password});
-      // Later part send to backend
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      //Simulate API call delay
-      setTimeout(() => {
-        setIsLoading(false);
-        router.push('/')
-      }, 2000);
-    } else {
-      setIsLoading(false);
+        if (error) {
+          throw error;
+        }
+
+        if (data.user) {
+          console.log("Successfully signed in:", data.user);
+          router.push('/'); // Redirect to dashboard/home page
+        }
+      } catch (error) {
+        console.error('Error signing in:', error);
+        if (error.message.includes('Invalid login credentials')) {
+          setEmailError('Invalid email or password');
+          setPasswordError('Invalid email or password');
+        } else if (error.message.includes('Email not confirmed')) {
+          setEmailError('Please check your email and confirm your account');
+        } else {
+          alert('Error signing in: ' + error.message);
+        }
+      }
     }
+    
+    setIsLoading(false);
   }
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
-    setTimeout(() => {
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // The redirect will happen automatically
+    } catch (error) {
+      console.error('Error with Google login:', error);
+      alert('Error signing in with Google: ' + error.message);
       setIsGoogleLoading(false);
-      router.push('/');
-    }, 1500);
+    }
   }
 
   return (
     <div className="min-h-screen bg-blue-100">
       <div className='flex items-center justify-center min-h-screen'>
-
-        {/* <div className='hidden lg:block'>
-          <Image 
-            src="/boy_student.png"
-            alt="boy student"
-            width={352}
-            height={352}
-          />
-        </div> */}
-
         <div className='bg-white rounded-lg p-8 shadow-lg w-96'>
           <h2 className='font-bold text-lg mb-4'>Sign in to your account</h2>
 
@@ -110,7 +129,7 @@ export default function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onBlur={handleEmailChange}
-                className='border border-black rounded-md p-2 mb-4 w-full focus:outline-none focus:border-blue-500 '
+                className='border border-black rounded-md p-2 mb-4 w-full focus:outline-none focus:border-blue-500'
               />
               {emailError && <p className='text-red-500 text-sm mb-4'>{emailError}</p>}
 
@@ -125,18 +144,22 @@ export default function SignIn() {
                 className='border border-black rounded-md p-2 mb-4 w-full focus:outline-none focus:border-blue-500'
               />
               {passwordError && <p className='text-red-500 text-sm mb-4'>{passwordError}</p>}
-
             </div>
 
-            <button type="submit" className='bg-amber-400 hover:bg-amber-500 p-2 rounded-md mb-4 w-full'>
-              {isLoading ? 'Singing in...' : 'Sign in Now'}
+            <button 
+              type="submit" 
+              disabled={isLoading}
+              className='bg-amber-400 hover:bg-amber-500 p-2 rounded-md mb-4 w-full disabled:opacity-50'
+            >
+              {isLoading ? 'Signing in...' : 'Sign in Now'}
             </button>
           </form>
           
           <button 
             onClick={handleGoogleLogin}
-            disabled={isGoogleLoading}
-            className='bg-amber-200 hover:bg-amber-500 p-2 rounded-md mb-4 w-full'>
+            disabled={isGoogleLoading || isLoading}
+            className='bg-amber-200 hover:bg-amber-500 p-2 rounded-md mb-4 w-full disabled:opacity-50'
+          >
             {isGoogleLoading ? 'Loading...' : 'Continue with Google'}
           </button>
 
@@ -147,27 +170,7 @@ export default function SignIn() {
             </Link>
           </div>
         </div>
-{/* 
-        <div className='hidden lg:block'>
-          <Image 
-            src="/boy_student.png"
-            alt="girl student"
-            width={352}
-            height={352}
-          />
-        </div> */}
-
       </div>
-
-      {/* <div className='absolute bottom-0 w-full flex justify-center'>
-        <Image 
-          src="/boy_student.png"
-          alt='cheering student'
-          width={100}
-          height={100}
-        />
-      </div> */}
-
     </div>
   )
 }
