@@ -1,31 +1,28 @@
 'use client';
-import React, {useState} from 'react'
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../lib/supabase';
 
 export default function ProfileSetup() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState(1);
-    const [formData, setFormData] = useState({name: '', age: '', avatar: ''});
-    const ages = ['3', '4', '5', '6', '7', '8+'];
+    const [formData, setFormData] = useState({name: '', avatar: ''});
     const avatars = ['/image1.svg', '/image2.svg', '/image3.svg', '/image4.svg', '/image5.svg', '/image6.svg', '/image7.svg', '/image8.svg', '/image9.svg', '/image10.svg', '/image11.svg', '/image12.svg'];
     const [errors, setErrors] = useState({});
     const [currentPage, setCurrentPage] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
     const avatarsPerPage = 6;
     const totalPages = Math.ceil(avatars.length / avatarsPerPage);
     const startIndex = currentPage * avatarsPerPage;
     const currentAvatars = avatars.slice(startIndex, startIndex + avatarsPerPage);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         const newErrors = {};
 
         if (currentStep === 1) {
             if (!formData.name.trim()) {
                 newErrors.name = 'Please enter your name';
-            }
-
-            if (!formData.age) {
-                newErrors.age = 'Please select your age';
             }
 
             setErrors(newErrors);
@@ -36,9 +33,39 @@ export default function ProfileSetup() {
         } else if (currentStep === 2) {
             if (!formData.avatar) {
                 setErrors({avatar: "Please choose an avatar"});
-            } else {
-                console.log("Complete Profile: ", formData);
-                router.push('/')
+                return;
+            }
+            
+            setIsLoading(true);
+            
+            try {
+                // Get current user
+                const { data: { user } } = await supabase.auth.getUser();
+                
+                if (!user) {
+                    throw new Error('No authenticated user found');
+                }
+
+                // Update user profile in database
+                const { error } = await supabase
+                    .from('users')
+                    .update({
+                        name: formData.name.trim(),
+                        avatar_url: formData.avatar
+                    })
+                    .eq('id', user.id);
+
+                if (error) {
+                    throw error;
+                }
+
+                console.log("Profile setup complete:", formData);
+                router.push('/');
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                alert('Error setting up profile: ' + error.message);
+            } finally {
+                setIsLoading(false);
             }
         }
     };
@@ -59,24 +86,9 @@ export default function ProfileSetup() {
                         {errors.name && <p className='text-red-500 text-sm mb-6'>{errors.name}</p>}
                     </div>
 
-                    <h1 className='text-2xl font-semibold mb-6 text-center'>Select your age</h1>
-                    <div className='flex flex-row gap-3 text-lg justify-center mb-8'>
-                        {ages.map((age) => (
-                            <div
-                                key={age}
-                                onClick={() => setFormData({...formData, age: age})}
-                                className={`w-14 h-14 rounded-full flex justify-center items-center cursor-pointer
-                                ${formData.age === age ? 'bg-amber-400' : 'bg-amber-100'}`}
-                            >
-                                <h1>{age}</h1>
-                            </div>
-                        ))}
-                    </div>
-                    {errors.age && <p className='text-red-500 text-sm mb-4 text-center'>{errors.age}</p>}
-
                     <button
                         onClick={handleSubmit} 
-                        className='bg-amber-400 text-white px-8 py-3 rounded-lg font-semibold'>
+                        className='bg-amber-400 text-white px-8 py-3 rounded-lg font-semibold mt-8'>
                         Next &gt;
                     </button>
                 </div>
@@ -88,7 +100,8 @@ export default function ProfileSetup() {
                     <div className='flex items-center justify-between mb-8'>
                         <button
                             onClick={() => setCurrentStep(1)}
-                            className='bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold'
+                            disabled={isLoading}
+                            className='bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold disabled:opacity-50'
                         >
                             Back
                         </button>
@@ -101,7 +114,7 @@ export default function ProfileSetup() {
                         {/* Left arrow */}
                         <button
                             onClick={() => setCurrentPage(currentPage - 1)}
-                            disabled={currentPage === 0}
+                            disabled={currentPage === 0 || isLoading}
                             className='text-gray-500 disabled:text-gray-300 text-3xl mr-6'
                         >
                             &lt;
@@ -112,9 +125,10 @@ export default function ProfileSetup() {
                             {currentAvatars.map((avatar, index) => (
                                 <div 
                                     key={startIndex + index}
-                                    onClick={() => setFormData({...formData, avatar: avatar})}
-                                    className={`w-16 h-16 rounded-full flex justify-center items-center cursor-pointer
-                                    ${formData.avatar === avatar ? 'bg-amber-400' : 'bg-amber-100'}`}
+                                    onClick={() => !isLoading && setFormData({...formData, avatar: avatar})}
+                                    className={`w-16 h-16 rounded-full flex justify-center items-center cursor-pointer transition-all
+                                    ${formData.avatar === avatar ? 'bg-amber-400' : 'bg-amber-100'}
+                                    ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <Image
                                         src={avatar}
@@ -130,7 +144,7 @@ export default function ProfileSetup() {
                         {/* Right arrow */}
                         <button
                             onClick={() => setCurrentPage(currentPage + 1)}
-                            disabled={currentPage === totalPages - 1}
+                            disabled={currentPage === totalPages - 1 || isLoading}
                             className='text-gray-500 disabled:text-gray-300 text-3xl ml-6'
                         >
                             &gt;
@@ -142,9 +156,10 @@ export default function ProfileSetup() {
                     <div className='flex justify-center'>
                         <button
                             onClick={handleSubmit}
-                            className='bg-amber-400 text-white px-8 py-3 rounded-lg font-semibold'
+                            disabled={isLoading}
+                            className='bg-amber-400 text-white px-8 py-3 rounded-lg font-semibold disabled:opacity-50'
                         >
-                            Finish
+                            {isLoading ? 'Setting up...' : 'Finish'}
                         </button>
                     </div>
                 </div>

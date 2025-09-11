@@ -2,25 +2,17 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../lib/supabase'; // Adjust path as needed
+import { supabase } from '../lib/supabase';
 
 export default function SignUp() {
   const router = useRouter();
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const validateName = (name) => {
-    if (name.length === 0) return "Name is required";
-    if (name.length < 2) return "Name must be at least 2 characters";
-    return "";
-  }
 
   const validateEmail = (email) => {
     if (email.length === 0) return "Email is required";
@@ -45,27 +37,20 @@ export default function SignUp() {
     e.preventDefault();
     setIsLoading(true);
 
-    const nameErr = validateName(name);
     const emailErr = validateEmail(email);
     const passwordErr = validatePassword(password);
     const confirmPasswordErr = validateConfirmPassword(confirmPassword, password);
 
-    setNameError(nameErr);
     setEmailError(emailErr);
     setPasswordError(passwordErr);
     setConfirmPasswordError(confirmPasswordErr);
 
-    if (!nameErr && !emailErr && !passwordErr && !confirmPasswordErr) {
+    if (!emailErr && !passwordErr && !confirmPasswordErr) {
       try {
         // Sign up user with Supabase Auth
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
-          password,
-          options: {
-            data: {
-              name: name, // This will be stored in auth.users metadata
-            }
-          }
+          password
         });
 
         if (authError) {
@@ -73,23 +58,22 @@ export default function SignUp() {
         }
 
         if (authData.user) {
-          // Insert additional user data into your custom users table
+          // Insert basic user data into custom users table (without name and avatar)
           const { error: insertError } = await supabase
             .from('users')
             .insert([
               {
-                id: authData.user.id, // Use the same ID from auth.users
-                name: name,
+                id: authData.user.id,
+                name: '', // Will be filled in profile setup
                 email: email,
-                // Don't store password - Supabase Auth handles this
-                avatar_url: null,
+                avatar_url: null, // Will be filled in profile setup
                 google_id: null
               }
             ]);
 
           if (insertError) {
             console.error('Error inserting user data:', insertError);
-            // Note: User is created in auth but not in custom table
+            throw new Error('Failed to create user profile');
           }
 
           // Create initial user progress
@@ -105,8 +89,9 @@ export default function SignUp() {
               }
             ]);
 
-          alert("Account created successfully! Please check your email to verify your account.");
-          router.push('/sign-in');
+          alert("Account created successfully!");
+          // Redirect to profile setup instead of sign-in
+          router.push('/profile-setup');
         }
       } catch (error) {
         console.error('Error creating account:', error);
@@ -127,18 +112,6 @@ export default function SignUp() {
         <h2 className='font-bold text-lg mb-4'>Create your account</h2>
 
         <form onSubmit={handleSubmit}>
-          <label className='block mb-2'>Name</label>
-          <input
-            disabled={isLoading}
-            type="text"
-            placeholder='John Doe'
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={(e) => setNameError(validateName(e.target.value))}
-            className='border border-gray-300 rounded-md p-2 mb-4 w-full focus:outline-none focus:border-blue-500'
-          />
-          {nameError && <p className='text-red-500 text-sm mb-4'>{nameError}</p>}
-
           <label className='block mb-2'>Email</label>
           <input
             disabled={isLoading}

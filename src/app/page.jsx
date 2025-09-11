@@ -1,188 +1,88 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { supabase } from './lib/supabase';
 
-// Curriculum data with SVG coordinates (800x1200 viewBox)
-const curriculumData = [
-  {
-    id: "get-started",
-    type: "start",
-    title: "Get Started",
-    focus: "Sign up to begin",
-    svgPosition: { x: 660, y: 1140 },
-    completed: false,
-    stars: 0,
-    unlocked: true // Always accessible for new users
-  },
-  {
-    id: 1,
-    type: "lesson",
-    title: "Lesson 1",
-    focus: "Jungle Animals - Short a",
-    svgPosition: { x:490, y: 1100 }, // Bottom right
-    completed: true,
-    stars: 2,
-    score: 75,
-    unlocked: true
-  },
-  {
-    id: 2,
-    type: "lesson", 
-    title: "Lesson 2",
-    focus: "Farm Friends - Short e",
-    svgPosition: { x: 352, y: 1050 }, // Moving up
-    completed: true,
-    stars: 3,
-    score: 95,
-    unlocked: true
-  },
-  {
-    id: 3,
-    type: "lesson",
-    title: "Lesson 3",
-    focus: "Zoo Day - Short i",
-    svgPosition: { x: 480, y: 960 }, // Left curve
-    completed: true,
-    stars: 3,
-    score: 75,
-    unlocked: true
-  },
-  {
-    id: 4,
-    type: "lesson",
-    title: "Lesson 4",
-    focus: "Animal Fun Review",
-    svgPosition: { x: 600, y: 870 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
+// Static SVG positions for the roadmap
+const lessonPositions = {
+  "get-started": { x: 660, y: 1140 },
+  1: { x: 490, y: 1100 },
+  2: { x: 352, y: 1050 },
+  3: { x: 480, y: 960 },
+  4: { x: 600, y: 870 },
+  "quiz1": { x: 710, y: 750 },
+  5: { x: 550, y: 700 },
+  6: { x: 410, y: 870 },
+  7: { x: 260, y: 1020 },
+  8: { x: 140, y: 850 },
+  "quiz2": { x: 310, y: 650 },
+  9: { x: 650, y: 600 },
+  10: { x: 680, y: 320 },
+  11: { x: 440, y: 460 },
+  12: { x: 240, y: 340 },
+  "reward": { x: 385, y: 90 } // This is quiz3 but displayed as reward
+};
+
+// Hardcoded quiz data for roadmap display
+const quizData = [
   {
     id: "quiz1",
     type: "quiz",
-    title: "Quiz 1",
+    title: "Unit 1 Checkpoint Quiz",
     focus: "Unit 1 Checkpoint",
-    svgPosition: { x: 710, y: 750 },
-    completed: false,
-    stars: 0,
-    unlocked: false
+    unlockAfterLesson: 4 // Unlocks after lesson 4
   },
   {
-    id: 5,
-    type: "lesson",
-    title: "Lesson 5",
-    focus: "Forest Fun - Short o",
-    svgPosition: { x: 550, y: 700 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
-  {
-    id: 6,
-    type: "lesson",
-    title: "Lesson 6",
-    focus: "Muddy Fun - Short u",
-    svgPosition: { x: 410, y: 870 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
-  {
-    id: 7,
-    type: "lesson",
-    title: "Lesson 7",
-    focus: "Rainy Day - Blends",
-    svgPosition: { x: 260, y: 1020 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
-  {
-    id: 8,
-    type: "lesson",
-    title: "Lesson 8",
-    focus: "Unit 2 Review",
-    svgPosition: { x: 140, y: 850 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
-  {
-    id: "quiz2",
+    id: "quiz2", 
     type: "quiz",
-    title: "Quiz 2",
+    title: "Unit 2 Checkpoint Quiz",
     focus: "Unit 2 Checkpoint",
-    svgPosition: { x: 310, y: 650 },
-    completed: false,
-    stars: 0,
-    unlocked: false
+    unlockAfterLesson: 8 // Unlocks after lesson 8
   },
-  {
-    id: 9,
-    type: "lesson",
-    title: "Lesson 9",
-    focus: "Windy Walk - Review",
-    svgPosition: { x: 650, y: 600 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
-  {
-    id: 10,
-    type: "lesson",
-    title: "Lesson 10",
-    focus: "Sunny Streets - Long a",
-    svgPosition: { x: 680, y: 320 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
-  {
-    id: 11,
-    type: "lesson",
-    title: "Lesson 11",
-    focus: "Home Helpers - Long i",
-    svgPosition: { x: 440, y: 460 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
-  {
-    id: 12,
-    type: "lesson",
-    title: "Lesson 12",
-    focus: "Final Review",
-    svgPosition: { x: 240, y: 340 },
-    completed: false,
-    stars: 0,
-    unlocked: false
-  },
-
   {
     id: "reward",
-    type: "reward",
-    title: "🏆 Reward!",
+    type: "reward", // Display as reward but it's actually quiz3
+    title: "🏆 Final Quiz!",
     focus: "Congratulations!",
-    svgPosition: { x: 385, y: 90 },
-    completed: false,
-    stars: 0,
-    unlocked: false
+    unlockAfterLesson: 12 // Unlocks after lesson 12
   }
 ];
 
 // Fixed Navigation Buttons Component
-const NavigationButtons = () => {
+const NavigationButtons = ({ user, userProfile }) => {
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+    } else {
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="fixed left-32 top-16 z-50 flex flex-col gap-6">
       {/* Profile Button Group */}
       <div className="flex flex-col items-center gap-1">
         <button 
-          className="w-14 h-14 bg-blue-300 hover:bg-blue-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
+          className="w-14 h-14 bg-blue-300 hover:bg-blue-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105 overflow-hidden"
           onClick={() => console.log('Profile clicked')}
         >
-          <span className="text-lg">👤</span>
+          {userProfile?.avatar_url ? (
+            <Image
+              src={userProfile.avatar_url}
+              alt="Profile Avatar"
+              width={40}
+              height={40}
+              className="object-contain"
+            />
+          ) : (
+            <span className="text-lg">👤</span>
+          )}
         </button>
-        <span className="text-sm font-medium text-gray-700">Name</span>
+        <span className="text-sm font-medium text-gray-700">
+          {userProfile?.name || 'Profile'}
+        </span>
       </div>
       
       {/* Progress Button Group */}
@@ -206,15 +106,28 @@ const NavigationButtons = () => {
         </button>
         <span className="text-sm font-medium text-gray-700">Details</span>
       </div>
+
+      {/* Sign Out Button */}
+      {user && (
+        <div className="flex flex-col items-center gap-1">
+          <button 
+            className="w-14 h-14 bg-red-300 hover:bg-red-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
+            onClick={handleSignOut}
+          >
+            <span className="text-lg">🚪</span>
+          </button>
+          <span className="text-sm font-medium text-gray-700">Sign Out</span>
+        </div>
+      )}
     </div>
   );
 };
 
-// True SVG-based roadmap component - 70% width and no bottom space
-const SVGRoadmap = ({ curriculum, onClick }) => {
+// SVG-based roadmap component
+const SVGRoadmap = ({ curriculum, onClick, isAuthenticated, furthestUnlockedPosition }) => {
   const getNodeColor = (item) => {
     if (item.type === "start") {
-      return "#22C55E"; // Green color for get started
+      return "#22C55E";
     }
     if (item.type === "reward") {
       if (!item.unlocked) return "#FCD34D";
@@ -237,9 +150,9 @@ const SVGRoadmap = ({ curriculum, onClick }) => {
       <svg 
         viewBox="0 0 800 1175" 
         style={{ 
-          width: '70vw',        // 70% of screen width
-          height: 'auto',       // Auto height
-          display: 'block'      // Remove any extra space
+          width: '70vw',
+          height: 'auto',
+          display: 'block'
         }}
       >
         {/* Background roadmap image */}
@@ -252,90 +165,57 @@ const SVGRoadmap = ({ curriculum, onClick }) => {
           preserveAspectRatio="xMidYMid meet"
         />
         
-        {/* Lesson nodes positioned with exact SVG coordinates */}
-        {curriculum.map((item) => {
-          const { x, y } = item.svgPosition;
-          const isClickable = item.unlocked || item.completed;
-          
-          return (
-            <g key={item.id}>
-              {/* Stars above completed items */}
-              {item.completed && item.stars > 0 && (
-                <g>
-                  {[...Array(item.stars)].map((_, index) => (
-                    <text
-                      key={index}
-                      x={x - 12 + (index * 8)}
-                      y={y - 22}
-                      fontSize="12"
-                      fill="#FFD700"
-                      textAnchor="middle"
-                    >
-                      ⭐
-                    </text>
-                  ))}
-                </g>
-              )}
-              
-              {/* Main lesson circle or start button rectangle */}
-              {item.type === "start" ? (
-                // Rectangle for start button
-                <rect
-                  x={x - 50}          // x position (center - half width)
-                  y={y - 18}          // y position (center - half height)
-                  width="100"         // Button width
-                  height="36"         // Button height
-                  rx="18"             // Corner radius for rounded corners
-                  ry="18"             // Corner radius for rounded corners
-                  fill={getNodeColor(item)}
-                  stroke="white"
-                  strokeWidth="3"
-                  className={`${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'} transition-all duration-200`}
-                  style={{ 
-                    opacity: isClickable ? 1 : 0.6,
-                    filter: isClickable ? 'none' : 'grayscale(0.5)'
-                  }}
-                  onClick={isClickable ? () => onClick(item) : undefined}
-                />
-              ) : (
-                // Circle for all other items (lessons, quizzes, rewards)
-                <circle
-                  cx={x}
-                  cy={y}
-                  r="22"
-                  fill={getNodeColor(item)}
-                  stroke="white"
-                  strokeWidth="3"
-                  className={`${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'} transition-all duration-200`}
-                  style={{ 
-                    opacity: isClickable ? 1 : 0.6,
-                    filter: isClickable ? 'none' : 'grayscale(0.5)'
-                  }}
-                  onClick={isClickable ? () => onClick(item) : undefined}
-                />
-              )}
-              
-              {/* Lesson number or icon */}
-              <text
-                x={x}
-                y={y + 1}
-                fontSize={item.type === "start" ? "13" : "16"}  // Smaller font for start button
-                fontWeight="bold"
-                fill="white"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className={isClickable ? 'cursor-pointer' : 'cursor-not-allowed'}
-                onClick={isClickable ? () => onClick(item) : undefined}
-              >
-                {item.type === "start" ? "Get Started" :  // Clean text without emoji
-                 item.type === "reward" ? "🏆" : 
-                 item.type === "quiz" ? "📝" : 
-                 item.id}
-              </text>
-              
-              {/* Hover effect circle or rectangle */}
-              {isClickable && (
-                item.type === "start" ? (
+        {/* Lesson nodes */}
+        {curriculum
+          .filter(item => {
+            // Hide "Get Started" button if user is authenticated
+            if (item.type === "start") {
+              return !isAuthenticated;
+            }
+            return true;
+          })
+          .map((item) => {
+            const position = lessonPositions[item.id] || { x: 400, y: 600 };
+            const { x, y } = position;
+            const isClickable = item.unlocked || item.completed;
+            
+            return (
+              <g key={item.id}>
+                {/* Highlight for furthest unlocked lesson */}
+                {furthestUnlockedPosition && 
+                 furthestUnlockedPosition.x === x && 
+                 furthestUnlockedPosition.y === y && (
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="35"
+                    fill="none"
+                    stroke="#FFD700"
+                    strokeWidth="3"
+                    className="animate-pulse"
+                  />
+                )}
+                
+                {/* Stars above completed items */}
+                {item.completed && item.stars > 0 && (
+                  <g>
+                    {[...Array(item.stars)].map((_, index) => (
+                      <text
+                        key={index}
+                        x={x - 12 + (index * 8)}
+                        y={y - 22}
+                        fontSize="12"
+                        fill="#FFD700"
+                        textAnchor="middle"
+                      >
+                        ⭐
+                      </text>
+                    ))}
+                  </g>
+                )}
+                
+                {/* Main lesson circle or start button rectangle */}
+                {item.type === "start" ? (
                   <rect
                     x={x - 50}
                     y={y - 18}
@@ -343,28 +223,83 @@ const SVGRoadmap = ({ curriculum, onClick }) => {
                     height="36"
                     rx="18"
                     ry="18"
-                    fill="transparent"
-                    stroke="transparent"
+                    fill={getNodeColor(item)}
+                    stroke="white"
                     strokeWidth="3"
-                    className="hover:stroke-yellow-300 hover:stroke-4 transition-all duration-200 cursor-pointer"
-                    onClick={() => onClick(item)}
+                    className={`${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'} transition-all duration-200`}
+                    style={{ 
+                      opacity: isClickable ? 1 : 0.6,
+                      filter: isClickable ? 'none' : 'grayscale(0.5)'
+                    }}
+                    onClick={isClickable ? () => onClick(item) : undefined}
                   />
                 ) : (
                   <circle
                     cx={x}
                     cy={y}
                     r="22"
-                    fill="transparent"
-                    stroke="transparent"
+                    fill={getNodeColor(item)}
+                    stroke="white"
                     strokeWidth="3"
-                    className="hover:stroke-yellow-300 hover:stroke-4 transition-all duration-200 cursor-pointer"
-                    onClick={() => onClick(item)}
+                    className={`${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'} transition-all duration-200`}
+                    style={{ 
+                      opacity: isClickable ? 1 : 0.6,
+                      filter: isClickable ? 'none' : 'grayscale(0.5)'
+                    }}
+                    onClick={isClickable ? () => onClick(item) : undefined}
                   />
-                )
-              )}
-            </g>
-          );
-        })}
+                )}
+                
+                {/* Lesson number or icon */}
+                <text
+                  x={x}
+                  y={y + 1}
+                  fontSize={item.type === "start" ? "13" : "16"}
+                  fontWeight="bold"
+                  fill="white"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className={isClickable ? 'cursor-pointer' : 'cursor-not-allowed'}
+                  onClick={isClickable ? () => onClick(item) : undefined}
+                >
+                  {item.type === "start" ? "Get Started" : 
+                   item.type === "reward" ? "🏆" : 
+                   item.type === "quiz" ? "📝" : 
+                   item.id}
+                </text>
+                
+                {/* Hover effect */}
+                {isClickable && (
+                  item.type === "start" ? (
+                    <rect
+                      x={x - 50}
+                      y={y - 18}
+                      width="100"
+                      height="36"
+                      rx="18"
+                      ry="18"
+                      fill="transparent"
+                      stroke="transparent"
+                      strokeWidth="3"
+                      className="hover:stroke-yellow-300 hover:stroke-4 transition-all duration-200 cursor-pointer"
+                      onClick={() => onClick(item)}
+                    />
+                  ) : (
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r="22"
+                      fill="transparent"
+                      stroke="transparent"
+                      strokeWidth="3"
+                      className="hover:stroke-yellow-300 hover:stroke-4 transition-all duration-200 cursor-pointer"
+                      onClick={() => onClick(item)}
+                    />
+                  )
+                )}
+              </g>
+            );
+          })}
       </svg>
     </div>
   );
@@ -373,57 +308,287 @@ const SVGRoadmap = ({ curriculum, onClick }) => {
 // Main Component
 export default function HomePage() {
   const router = useRouter();
-  const [curriculum, setCurriculum] = useState(curriculumData);
+  const [curriculum, setCurriculum] = useState([]);
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [userProgress, setUserProgress] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [furthestUnlockedPosition, setFurthestUnlockedPosition] = useState(null);
 
-  // Scroll to bottom on page load
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      window.scrollTo({
-        top: document.body.scrollHeight,
-        behavior: 'smooth'
-      });
-    }, 100);
+  // Fetch lessons from database
+  const fetchLessons = async () => {
+    try {
+      const { data: lessons, error } = await supabase
+        .from('lessons')
+        .select('*')
+        .order('id');
+
+      if (error) throw error;
+
+      return lessons || [];
+    } catch (error) {
+      console.error('Error fetching lessons:', error);
+      return [];
+    }
+  };
+
+  // Fetch user progress
+  const fetchUserProgress = async (userId) => {
+    try {
+      // Get overall progress
+      const { data: progress, error: progressError } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (progressError && progressError.code !== 'PGRST116') {
+        throw progressError;
+      }
+
+      // Get lesson-specific progress
+      const { data: lessonProgress, error: lessonError } = await supabase
+        .from('user_lesson')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (lessonError) throw lessonError;
+
+      return {
+        overall: progress,
+        lessons: lessonProgress || []
+      };
+    } catch (error) {
+      console.error('Error fetching user progress:', error);
+      return { overall: null, lessons: [] };
+    }
+  };
+
+  // Get highest completed lesson number
+  const getHighestCompletedLesson = (userProgress) => {
+    if (!userProgress.lessons || userProgress.lessons.length === 0) {
+      return 0; // No lessons completed
+    }
     
-    return () => clearTimeout(timer);
-  }, []);
+    const completedLessons = userProgress.lessons
+      .filter(lp => lp.is_completed)
+      .map(lp => lp.lesson_id)
+      .filter(id => typeof id === 'number'); // Only numeric lesson IDs
+    
+    return completedLessons.length > 0 ? Math.max(...completedLessons) : 0;
+  };
+
+  // Build curriculum data from database + hardcoded quizzes
+  const buildCurriculum = (lessons, userProgress) => {
+    const curriculumItems = [];
+    const highestCompletedLesson = getHighestCompletedLesson(userProgress);
+
+    // Add "Get Started" button
+    curriculumItems.push({
+      id: "get-started",
+      type: "start",
+      title: "Get Started",
+      focus: "Sign up to begin",
+      completed: false,
+      stars: 0,
+      unlocked: true
+    });
+
+    // Add lessons from database
+    lessons.forEach(lesson => {
+      const lessonProgress = userProgress.lessons.find(lp => lp.lesson_id === lesson.id);
+      
+      curriculumItems.push({
+        id: lesson.id,
+        type: "lesson",
+        title: `Lesson ${lesson.id}`,
+        focus: lesson.title,
+        completed: lessonProgress?.is_completed || false,
+        stars: lessonProgress?.best_stars || 0,
+        score: lessonProgress?.best_score || 0,
+        unlocked: lesson.id === 1 || lesson.id <= highestCompletedLesson + 1
+      });
+    });
+
+    // Add hardcoded quizzes
+    quizData.forEach(quiz => {
+      curriculumItems.push({
+        id: quiz.id,
+        type: quiz.type,
+        title: quiz.title,
+        focus: quiz.focus,
+        completed: false, // You can later check personalized_quiz table for completion
+        stars: 0,
+        unlocked: highestCompletedLesson >= quiz.unlockAfterLesson
+      });
+    });
+
+    return curriculumItems;
+  };
+
+  // Calculate scroll position for furthest unlocked lesson
+  const calculateScrollPosition = (curriculum) => {
+    const furthestUnlocked = curriculum
+      .filter(item => (item.type === "lesson" || item.type === "quiz") && item.unlocked && !item.completed)
+      .sort((a, b) => {
+        // Handle mixed ID types (numbers and strings)
+        const aId = typeof a.id === 'number' ? a.id : 999;
+        const bId = typeof b.id === 'number' ? b.id : 999;
+        return aId - bId;
+      })[0];
+
+    if (furthestUnlocked && lessonPositions[furthestUnlocked.id]) {
+      const position = lessonPositions[furthestUnlocked.id];
+      setFurthestUnlockedPosition(position);
+      
+      // Calculate scroll position based on SVG coordinates
+      const svgHeight = 1175;
+      const viewportHeight = window.innerHeight;
+      const scrollRatio = position.y / svgHeight;
+      const documentHeight = document.body.scrollHeight;
+      
+      return documentHeight * scrollRatio - (viewportHeight / 2);
+    }
+    
+    return 0;
+  };
+
+  // Check authentication and load data
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+
+        let progress = { overall: null, lessons: [] };
+
+        if (user) {
+          // Fetch user profile
+          const { data: profile, error } = await supabase
+            .from('users')
+            .select('name, avatar_url')
+            .eq('id', user.id)
+            .single();
+
+          if (error) {
+            console.error('Error fetching user profile:', error);
+          } else {
+            setUserProfile(profile);
+            
+            // If user doesn't have name or avatar, redirect to profile setup
+            if (!profile.name || !profile.avatar_url) {
+              router.push('/profile-setup');
+              return;
+            }
+          }
+
+          // Fetch user progress
+          progress = await fetchUserProgress(user.id);
+          setUserProgress(progress);
+        }
+
+        // Always fetch lessons (for display purposes)
+        const lessons = await fetchLessons();
+        
+        // Build curriculum based on user progress
+        const curriculumData = buildCurriculum(lessons, progress);
+        setCurriculum(curriculumData);
+
+      } catch (error) {
+        console.error('Error checking auth:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setUserProfile(null);
+        setUserProgress(null);
+      } else if (event === 'SIGNED_IN') {
+        checkAuth();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]);
+
+  // Scroll to furthest unlocked lesson
+  useEffect(() => {
+    if (!loading && curriculum.length > 0 && user) {
+      const timer = setTimeout(() => {
+        const scrollPosition = calculateScrollPosition(curriculum);
+        window.scrollTo({
+          top: scrollPosition,
+          behavior: 'smooth'
+        });
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    } else if (!loading && !user) {
+      // For non-authenticated users, scroll to bottom (Get Started button)
+      const timer = setTimeout(() => {
+        window.scrollTo({
+          top: document.body.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [loading, curriculum, user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-sky-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className='min-h-screen bg-sky-100'>
-      {/* Fixed Navigation Buttons */}
-      <NavigationButtons />
+      {/* Fixed Navigation Buttons - only show if authenticated */}
+      {user && <NavigationButtons user={user} userProfile={userProfile} />}
 
-    <SVGRoadmap 
-      curriculum={curriculum}
-      onClick={(clickedItem) => {
-        if (clickedItem.type === "start") {        
-          router.push('/sign-up');
-          return;                                  
-        }
-        
-        if (clickedItem.type === "lesson") {
-          // Check if lesson is unlocked
-          if (clickedItem.unlocked || clickedItem.completed) {
-            router.push(`/lesson/${clickedItem.id}`);
-          } else {
-            // Show locked lesson message
-            alert('Complete previous lessons to unlock this one!');
+      <SVGRoadmap 
+        curriculum={curriculum}
+        isAuthenticated={!!user}
+        furthestUnlockedPosition={furthestUnlockedPosition}
+        onClick={(clickedItem) => {
+          if (clickedItem.type === "start") {        
+            router.push('/sign-up');
+            return;                                  
           }
-          return;
-        }
-        
-        if (clickedItem.type === "quiz") {
-          // Handle checkpoint quizzes
-          if (clickedItem.unlocked || clickedItem.completed) {
-            router.push(`/lesson/${clickedItem.id}`);
-          } else {
-            alert('Complete the unit lessons to unlock this quiz!');
+          
+          if (clickedItem.type === "lesson") {
+            if (clickedItem.unlocked || clickedItem.completed) {
+              router.push(`/lesson/${clickedItem.id}`);
+            } else {
+              alert('Complete previous lessons to unlock this one!');
+            }
+            return;
           }
-          return;
-        }
-        
-        console.log('Clicked:', clickedItem.title);
-      }}
-    />
+          
+          if (clickedItem.type === "quiz" || clickedItem.type === "reward") {
+            if (clickedItem.unlocked || clickedItem.completed) {
+              router.push(`/quiz/${clickedItem.id}`);
+            } else {
+              alert('Complete more lessons to unlock this quiz!');
+            }
+            return;
+          }
+          
+          console.log('Clicked:', clickedItem.title);
+        }}
+      />
     </div>
   );
 }
