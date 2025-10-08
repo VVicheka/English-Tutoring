@@ -1,16 +1,29 @@
-// /app/lesson/components/useTextToSpeech.js - Improved with better error handling
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from "react";
 
 export const useTextToSpeech = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
+  const [voices, setVoices] = useState([]);
   const utteranceRef = useRef(null);
 
   useEffect(() => {
-    // Check if Speech Synthesis is supported
     setIsSupported('speechSynthesis' in window);
 
-    // Cleanup function
+    const loadVoices = () => {
+      const availableVoices = speechSynthesis.getVoices();
+      setVoices(availableVoices);
+
+      const femaleVoices = availableVoices.filter (v =>
+        v.name.includes('Female') ||
+        v.name.includes('Samantha') ||
+        v.name.includes('Zira')
+      );
+      console.log('Female voices found: ', femaleVoices.map(v => v.name));
+    };
+
+    loadVoices(); // Load immediately (for firefox and some browser)
+    speechSynthesis.onvoiceschanged = loadVoices; // Load when ready (for chrome)
+
     return () => {
       if (speechSynthesis.speaking) {
         speechSynthesis.cancel();
@@ -29,21 +42,33 @@ export const useTextToSpeech = () => {
       return;
     }
 
-    // Stop any current speech
     speechSynthesis.cancel();
 
-    // Small delay to ensure previous speech is cancelled
     setTimeout(() => {
       try {
-        // Create new utterance
         const utterance = new SpeechSynthesisUtterance(text.trim());
         utteranceRef.current = utterance;
 
-        // Configure speech options
-        utterance.rate = options.rate || 0.8;        // Slower for children
-        utterance.pitch = options.pitch || 1.1;      // Slightly higher pitch
-        utterance.volume = options.volume || 1;      // Full volume
-        utterance.lang = options.lang || 'en-US';    // English
+        const femaleVoice = voices.find(voice =>
+          voice.name.includes('Samantha') ||
+          voice.name === 'Google US English Female' ||
+          voice.name.includes('Zira') ||
+          voice.name.includes('Female') ||
+          voice.name.includes('Victoria') ||
+          voice.name.includes('Karen')
+        );
+
+        if (femaleVoice) {
+          utterance.voice = femaleVoice;
+          console.log('Using female voice:', femaleVoice.name);
+        } else {
+          console.warn('No female voice found, using default');
+        }
+
+        utterance.rate = options.rate || 0.75; // Change Reading Speed
+        utterance.pitch = options.pitch || 1.1;
+        utterance.volume = options.volume || 1;
+        utterance.lang = options.lang || 'en-US';
 
         // Event handlers
         utterance.onstart = () => {
@@ -55,7 +80,6 @@ export const useTextToSpeech = () => {
         };
 
         utterance.onerror = (error) => {
-          // Don't log empty error objects, they're usually not critical
           if (error && error.error && error.error !== 'interrupted') {
             console.warn('Speech synthesis error:', error.error);
           }
@@ -63,17 +87,15 @@ export const useTextToSpeech = () => {
         };
 
         utterance.onpause = () => {
-          // Keep speaking state true when paused
+
         };
 
         utterance.onresume = () => {
           setIsSpeaking(true);
         };
 
-        // Speak the text
         speechSynthesis.speak(utterance);
 
-        // Fallback: if speech doesn't start in 1 second, reset state
         setTimeout(() => {
           if (!speechSynthesis.speaking && isSpeaking) {
             setIsSpeaking(false);
@@ -99,23 +121,22 @@ export const useTextToSpeech = () => {
 
   const pause = () => {
     try {
-      if (speechSynthesis.speaking && !speechSynthesis.paused) {
-        speechSynthesis.pause();
-      }
+      
     } catch (err) {
-      console.warn('Error pausing speech:', err);
+      console.warn('Error stopping speech:', err);
+      setIsSpeaking(false);
     }
   };
 
   const resume = () => {
     try {
-      if (speechSynthesis.paused) {
+      if (speechSynthesis.pause) {
         speechSynthesis.resume();
       }
     } catch (err) {
       console.warn('Error resuming speech:', err);
     }
-  };
+  }
 
   return {
     speak,
