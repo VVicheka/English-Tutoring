@@ -1,4 +1,4 @@
-// Fixed LetterConnectionActivity - Random Patterns + State Persistence
+// Fixed LetterConnectionActivity - Responsive Layout + State Persistence
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
 
@@ -56,41 +56,81 @@ export const LetterConnectionActivity = ({
     }
   };
 
-  // Generate letters with diverse placement patterns
-  const generateLettersForQuestion = (answer) => {
+  // FIXED: Generate deterministic seed from answer
+  const generateSeedFromAnswer = (answer, step) => {
+    let seed = 0;
+    const combined = `${answer}-${step}`;
+    for (let i = 0; i < combined.length; i++) {
+      seed = ((seed << 5) - seed + combined.charCodeAt(i)) & 0xffffffff;
+    }
+    return Math.abs(seed);
+  };
+
+  // FIXED: Deterministic random number generator
+  const createSeededRandom = (seed) => {
+    let state = seed % 2147483647;
+    if (state <= 0) state += 2147483646;
+    
+    return function() {
+      state = (state * 16807) % 2147483647;
+      return (state - 1) / 2147483646;
+    };
+  };
+
+  // FIXED: Generate letters with deterministic placement patterns
+  const generateLettersForQuestion = (answer, step) => {
     const answerLetters = answer.toUpperCase().split('');
     const grid = new Array(9).fill(null);
     
+    // Create deterministic random generator
+    const seed = generateSeedFromAnswer(answer, step);
+    const seededRandom = createSeededRandom(seed);
+    
     const placementStrategies = [
-      [0, 1, 2, 5, 8, 7, 6, 3, 4], // Spiral
+      [0, 1, 2, 5, 8, 7, 6, 3, 4], // Spiral clockwise
       [0, 3, 6, 7, 8, 5, 2, 1, 4], // Border clockwise
-      [4, 1, 0, 3, 6, 7, 8, 5, 2], // Center outward
+      [4, 1, 0, 3, 6, 7, 8, 5, 2], // Center outward spiral
       [0, 1, 4, 7, 6, 3, 2, 5, 8], // Snake pattern
-      [0, 4, 2, 6, 8, 1, 3, 5, 7], // Diagonal mixed
-      [2, 1, 0, 5, 8, 7, 4, 3, 6], // Top row mixed
-      [6, 3, 0, 1, 4, 7, 8, 5, 2], // Bottom-left start
-      [8, 5, 2, 1, 0, 3, 6, 7, 4], // Bottom-right start
-      [1, 4, 7, 8, 5, 2, 0, 3, 6], // Vertical mixed
+      [2, 5, 8, 7, 4, 1, 0, 3, 6], // Diagonal sweep
+      [6, 7, 8, 5, 2, 1, 0, 3, 4], // Bottom to top
       [8, 7, 6, 3, 0, 1, 2, 5, 4], // Reverse spiral
+      [1, 4, 7, 6, 3, 0, 2, 5, 8], // Vertical wave
+      [0, 2, 8, 6, 4, 1, 3, 5, 7], // Cross pattern
+      [4, 0, 8, 2, 6, 1, 3, 5, 7], // Star pattern
     ];
     
-    const strategy = placementStrategies[Math.floor(Math.random() * placementStrategies.length)];
+    // Select strategy deterministically based on answer length and step
+    const strategyIndex = (answerLetters.length + step) % placementStrategies.length;
+    const strategy = placementStrategies[strategyIndex];
     
     // Place answer letters using selected strategy
     for (let i = 0; i < answerLetters.length && i < strategy.length; i++) {
       grid[strategy[i]] = answerLetters[i];
     }
     
-    // Fill remaining positions with random letters
+    // Fill remaining positions with deterministic random letters
     const allLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const usedLetters = new Set(answerLetters);
     
     for (let i = 0; i < grid.length; i++) {
       if (grid[i] === null) {
         let randomLetter;
+        let attempts = 0;
         do {
-          randomLetter = allLetters[Math.floor(Math.random() * allLetters.length)];
-        } while (usedLetters.has(randomLetter));
+          const randomIndex = Math.floor(seededRandom() * allLetters.length);
+          randomLetter = allLetters[randomIndex];
+          attempts++;
+        } while (usedLetters.has(randomLetter) && attempts < 50);
+        
+        // Fallback if we can't find a unique letter
+        if (usedLetters.has(randomLetter)) {
+          for (let j = 0; j < allLetters.length; j++) {
+            if (!usedLetters.has(allLetters[j])) {
+              randomLetter = allLetters[j];
+              break;
+            }
+          }
+        }
         
         grid[i] = randomLetter;
         usedLetters.add(randomLetter);
@@ -100,12 +140,24 @@ export const LetterConnectionActivity = ({
     return grid;
   };
 
+  // FIXED: Create unique storage key for persistent state
+  const storageKey = useMemo(() => {
+    if (!content?.activityB?.questions) return 'default-fillwords';
+    const questionsHash = content.activityB.questions
+      .map(q => q.answer)
+      .join('-')
+      .split('')
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return `fillwords-activity-${questionsHash}`;
+  }, [content]);
+
   // State management
   const [connectedLetters, setConnectedLetters] = useState([]);
   const [questionLetters, setQuestionLetters] = useState([]);
   const [letterPositions, setLetterPositions] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   
   // Drag state
   const [isDrawing, setIsDrawing] = useState(false);
@@ -127,14 +179,12 @@ export const LetterConnectionActivity = ({
     return content?.activityB?.questions?.[currentStep];
   }, [content, currentStep]);
 
-  // FIXED: Generate letter positions from grid layout
+  // FIXED: Generate letter positions from grid layout - responsive
   const generateLetterPositions = (letters) => {
     const positions = {};
-    const containerWidth = 272; // Approximate container width (w-80 = 320px - padding)
-    const containerHeight = 400; // Approximate grid area height
-    const gridStartY = 60; // Account for header
-    const letterSize = 56; // w-14 h-14 = 56px
-    const gap = 12; // gap-3 = 12px
+    const letterSize = 56; // Base size for calculations
+    const gap = 8; // Reduced gap for better fit
+    const gridStartY = 60; // Reduced header space
     
     letters.forEach((letter, index) => {
       if (letter) {
@@ -142,7 +192,7 @@ export const LetterConnectionActivity = ({
         const col = index % 3;
         
         // Calculate position based on grid layout
-        const x = col * (letterSize + gap) + letterSize / 2 + 16; // 16px padding
+        const x = col * (letterSize + gap) + letterSize / 2 + 12; // Reduced padding
         const y = row * (letterSize + gap) + letterSize / 2 + gridStartY;
         
         positions[letter] = { x, y };
@@ -152,40 +202,96 @@ export const LetterConnectionActivity = ({
     return positions;
   };
 
-  // FIXED: State persistence and restoration
+  // FIXED: Load and save persistent state
   useEffect(() => {
-    if (currentQuestion) {
-      const newLetters = generateLettersForQuestion(currentQuestion.answer, currentStep);
-      setQuestionLetters(newLetters);
-      
-      // FIXED: Restore state for completed steps, reset for new steps
-      if (stepData) {
-        // Step is completed - restore saved state
-        setConnectedLetters(stepData.connectedLetters || []);
-        
-        // FIXED: Restore letter positions from saved grid layout
-        if (stepData.questionLetters) {
-          const positions = generateLetterPositions(stepData.questionLetters);
-          setLetterPositions(positions);
-        } else {
-          // Fallback: generate positions from current letters
-          const positions = generateLetterPositions(newLetters);
-          setLetterPositions(positions);
+    if (typeof window !== 'undefined' && storageKey !== 'default-fillwords') {
+      try {
+        const saved = window.fillwordsActivityProgress?.[storageKey];
+        if (saved && saved[currentStep]) {
+          const stepSaved = saved[currentStep];
+          console.log('Loading saved fillwords state for step:', currentStep, stepSaved);
+          
+          // Restore the exact same letter layout
+          if (stepSaved.questionLetters) {
+            setQuestionLetters(stepSaved.questionLetters);
+            const positions = generateLetterPositions(stepSaved.questionLetters);
+            setLetterPositions(positions);
+          }
+          
+          if (stepSaved.connectedLetters) {
+            setConnectedLetters(stepSaved.connectedLetters);
+          }
         }
-        
-        setDragPath([]);
-        setIsProcessing(false);
-        setShowHint(false);
-      } else {
-        // Step is not completed - reset for new attempt
-        setConnectedLetters([]);
-        setLetterPositions({});
-        setDragPath([]);
-        setIsProcessing(false);
-        setShowHint(false);
+      } catch (error) {
+        console.error('Error loading fillwords progress:', error);
       }
     }
-  }, [currentStep, currentQuestion, stepData]);
+    setHasLoaded(true);
+  }, [storageKey, currentStep]);
+
+  // FIXED: State persistence and restoration
+  useEffect(() => {
+    if (!hasLoaded || !currentQuestion) return;
+    
+    // Check if we have saved state for this step
+    const saved = typeof window !== 'undefined' ? 
+      window.fillwordsActivityProgress?.[storageKey]?.[currentStep] : null;
+    
+    if (saved && saved.questionLetters) {
+      // Restore saved state
+      console.log('Restoring saved state for step:', currentStep);
+      setQuestionLetters(saved.questionLetters);
+      setConnectedLetters(saved.connectedLetters || []);
+      const positions = generateLetterPositions(saved.questionLetters);
+      setLetterPositions(positions);
+    } else {
+      // Generate new state
+      console.log('Generating new state for step:', currentStep);
+      const newLetters = generateLettersForQuestion(currentQuestion.answer, currentStep);
+      setQuestionLetters(newLetters);
+      setConnectedLetters([]);
+      const positions = generateLetterPositions(newLetters);
+      setLetterPositions(positions);
+      
+      // Save initial state
+      if (typeof window !== 'undefined') {
+        if (!window.fillwordsActivityProgress) {
+          window.fillwordsActivityProgress = {};
+        }
+        if (!window.fillwordsActivityProgress[storageKey]) {
+          window.fillwordsActivityProgress[storageKey] = {};
+        }
+        window.fillwordsActivityProgress[storageKey][currentStep] = {
+          questionLetters: newLetters,
+          connectedLetters: [],
+        };
+      }
+    }
+    
+    // Reset interaction state
+    setDragPath([]);
+    setIsProcessing(false);
+    setShowHint(stepData ? !stepData.isCorrect : false);
+  }, [currentStep, currentQuestion, hasLoaded, storageKey, stepData]);
+
+  // FIXED: Save state whenever it changes
+  useEffect(() => {
+    if (!hasLoaded || !currentQuestion) return;
+    
+    if (typeof window !== 'undefined') {
+      if (!window.fillwordsActivityProgress) {
+        window.fillwordsActivityProgress = {};
+      }
+      if (!window.fillwordsActivityProgress[storageKey]) {
+        window.fillwordsActivityProgress[storageKey] = {};
+      }
+      
+      window.fillwordsActivityProgress[storageKey][currentStep] = {
+        questionLetters: questionLetters,
+        connectedLetters: connectedLetters,
+      };
+    }
+  }, [questionLetters, connectedLetters, currentStep, storageKey, hasLoaded, currentQuestion]);
 
   // Auto-advance logic with proper dependencies
   useEffect(() => {
@@ -349,14 +455,14 @@ export const LetterConnectionActivity = ({
         
         setTimeout(() => {
           if (onStepComplete) {
-            // FIXED: Save complete state including grid layout
+            // Save complete state including grid layout
             onStepComplete(currentStep, {
               connectedLetters: dragPath,
               isCorrect: true,
               targetWord: targetWord,
               formedWord: formedWord,
-              questionLetters: questionLetters, // FIXED: Save grid layout
-              letterPositions: { ...letterPositions } // FIXED: Save positions
+              questionLetters: questionLetters,
+              letterPositions: { ...letterPositions }
             });
           }
           
@@ -379,14 +485,14 @@ export const LetterConnectionActivity = ({
       
       setTimeout(() => {
         if (onStepComplete) {
-          // FIXED: Save state even for incorrect attempts
+          // Save state even for incorrect attempts
           onStepComplete(currentStep, {
             connectedLetters: dragPath,
             isCorrect: false,
             targetWord: targetWord,
             formedWord: formedWord,
-            questionLetters: questionLetters, // FIXED: Save grid layout
-            letterPositions: { ...letterPositions } // FIXED: Save positions
+            questionLetters: questionLetters,
+            letterPositions: { ...letterPositions }
           });
         }
         setIsProcessing(false);
@@ -419,6 +525,18 @@ export const LetterConnectionActivity = ({
     }
   };
 
+  // Show loading state
+  if (!hasLoaded) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading word activity...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Error state
   if (!content?.activityB?.questions || !currentQuestionData) {
     return (
@@ -431,55 +549,80 @@ export const LetterConnectionActivity = ({
   }
 
   return (
-    <div className="h-full flex flex-col p-4 bg-orange-50 overflow-hidden">
-      {/* Header */}
-      <div className="flex-shrink-0 text-center mb-4">
-        <h3 className="text-xl font-bold text-orange-800 mb-1">
-          {content.activityB.title || "Connect the Letters"}
-        </h3>
-        
-        {/* Progress */}
-        <div className="flex items-center justify-center space-x-3 mb-2">
-          <span className="text-sm text-gray-600">
-            Word {currentStep + 1}/{totalQuestions}
-          </span>
-          <div className="w-24 bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-orange-500 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${((currentStep + 1) / totalQuestions) * 100}%` }}
-            />
+    <div className="h-full flex flex-col bg-gradient-to-br from-orange-50 to-yellow-50 overflow-hidden">
+      {/* FIXED: Compact header design */}
+      <div className="flex-shrink-0 text-center py-3 px-4">
+        <div className="bg-white rounded-lg shadow-sm p-3">
+          <h3 className="text-lg font-bold text-orange-800 mb-2">
+            {content.activityB.title || "Connect the Letters"}
+          </h3>
+          
+          {/* Compact Progress */}
+          <div className="flex items-center justify-center space-x-3 mb-2">
+            <div className="flex items-center space-x-1">
+              <span className="text-xs font-medium text-gray-700">Word</span>
+              <div className="px-2 py-1 bg-orange-100 rounded-full">
+                <span className="text-xs font-bold text-orange-800">
+                  {currentStep + 1}/{totalQuestions}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex-1 max-w-32">
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-orange-400 to-orange-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${((currentStep + 1) / totalQuestions) * 100}%` }}
+                />
+              </div>
+            </div>
+            
+            <span className="text-xs font-semibold text-orange-600">
+              {Math.round(((currentStep + 1) / totalQuestions) * 100)}%
+            </span>
           </div>
-          <span className="text-sm font-semibold text-orange-600">
-            {Math.round(((currentStep + 1) / totalQuestions) * 100)}%
-          </span>
+          
+          {/* Completion status */}
+          {isCompleted && (
+            <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+              stepData.isCorrect 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {stepData.isCorrect ? 'Completed correctly' : 'Attempted'}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex gap-4 min-h-0">
+      {/* FIXED: Main Content with better responsive layout */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-3 px-3 pb-3 min-h-0">
         {/* Left Side - Image and Sentence */}
-        <div className="flex-1 min-w-0">
-          <div className="bg-white rounded-lg shadow-lg p-4 h-full flex flex-col">
-            {/* Image placeholder */}
-            <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center mb-4 flex-shrink-0">
-              <div className="text-4xl">🖼️</div>
-              <div className="ml-2 text-gray-600">
-                <p className="text-xs">Image placeholder</p>
+        <div className="flex-1 min-w-0 lg:min-h-0">
+          <div className="bg-white rounded-lg shadow-md p-4 h-full flex flex-col">
+            {/* FIXED: Smaller image placeholder */}
+            <div className="w-full h-24 lg:h-32 bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 rounded-lg flex items-center justify-center mb-3 flex-shrink-0 border border-gray-200">
+              <div className="text-center">
+                <div className="text-3xl mb-1">🖼️</div>
+                <p className="text-xs text-gray-500">Image for: {currentQuestion.answer}</p>
               </div>
             </div>
             
             {/* Sentence */}
             <div className="flex-1 flex items-center justify-center">
               <div 
-                className="text-lg leading-relaxed cursor-pointer hover:bg-gray-50 p-3 rounded-lg text-center"
+                className="text-center cursor-pointer hover:bg-gray-50 p-3 rounded-lg transition-all duration-200"
                 onClick={handleSentenceClick}
               >
-                <p className="mb-2">{currentQuestion.sentence}</p>
-                <p className="text-xs text-gray-500">🔈 Click to hear</p>
+                <p className="text-base lg:text-lg leading-relaxed mb-2 text-gray-800">{currentQuestion.sentence}</p>
+                <div className="flex items-center justify-center space-x-2 text-blue-600 hover:text-blue-700">
+                  <span className="text-sm">🔈</span>
+                  <span className="text-xs font-medium">Click to hear</span>
+                </div>
                 
                 {/* Show hint when incorrect */}
                 {showHint && !isCompleted && (
-                  <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-yellow-800 font-semibold text-sm mb-1">💡 Try Again!</p>
                     <p className="text-yellow-700 text-sm">
                       The word is: <span className="font-bold">{currentQuestion.answer.toUpperCase()}</span>
@@ -489,47 +632,68 @@ export const LetterConnectionActivity = ({
                 
                 {/* Show result when completed */}
                 {isCompleted && (
-                  <div className={`mt-3 p-2 rounded-lg ${
-                    stepData.isCorrect ? 'bg-green-100 border border-green-300' : 'bg-red-100 border border-red-300'
+                  <div className={`mt-3 p-3 rounded-lg border ${
+                    stepData.isCorrect 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-red-50 border-red-200'
                   }`}>
-                    <p className={`font-semibold text-sm ${
+                    <p className={`font-semibold text-sm mb-1 ${
                       stepData.isCorrect ? 'text-green-700' : 'text-red-700'
                     }`}>
                       {stepData.isCorrect ? '✓ Correct!' : '✗ Not quite right'}
                     </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      Answer: {currentQuestion.answer.toUpperCase()}
+                    <p className="text-xs text-gray-600">
+                      Answer: <span className="font-bold">{currentQuestion.answer.toUpperCase()}</span>
                     </p>
+                    {stepData.formedWord && stepData.formedWord !== stepData.targetWord && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        You formed: <span className="font-medium">{stepData.formedWord}</span>
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
             </div>
             
-            {/* Instruction */}
-            <div className="flex justify-center items-center mt-4 flex-shrink-0">
-              <div className="px-3 py-1 bg-gray-200 text-gray-600 rounded-lg text-sm">
-                {isCompleted ? 'Word completed' : isProcessing ? 'Processing...' : 'Drag to connect letters'}
+            {/* FIXED: Compact status indicator */}
+            <div className="flex justify-center items-center mt-2 flex-shrink-0">
+              <div className={`px-3 py-1 rounded-md text-xs font-medium ${
+                isCompleted 
+                  ? stepData.isCorrect
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-yellow-100 text-yellow-700'
+                  : isProcessing 
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600'
+              }`}>
+                {isCompleted 
+                  ? stepData.isCorrect 
+                    ? 'Word completed correctly'
+                    : 'Word attempted'
+                  : isProcessing 
+                    ? 'Processing your answer...'
+                    : 'Drag to connect letters'
+                }
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right Side - Letters and Connection Area */}
-        <div className="w-80 flex-shrink-0">
+        {/* FIXED: Right Side - Letters and Connection Area - responsive width */}
+        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0">
           <div 
             ref={containerRef}
-            className="bg-white rounded-lg shadow-lg p-4 h-full relative"
+            className="bg-white rounded-lg shadow-md p-4 h-full relative overflow-hidden"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={resetDragState}
-            style={{ overflow: 'hidden' }}
           >
-            <h4 className="text-lg font-semibold text-center mb-3 text-gray-700">
+            <h4 className="text-sm font-semibold text-center mb-3 text-gray-700">
               {isCompleted ? 'Completed Word' : 'Drag to Connect Letters'}
             </h4>
             
-            {/* Letter Grid */}
-            <div className="grid grid-cols-3 gap-3 mb-4 relative z-20">
+            {/* FIXED: Letter Grid - responsive sizing */}
+            <div className="grid grid-cols-3 gap-2 mb-4 relative z-20 justify-items-center">
               {questionLetters.slice(0, 9).map((letter, index) => {
                 const isConnected = connectedLetters.includes(letter);
                 const isInDragPath = dragPath.includes(letter);
@@ -540,16 +704,16 @@ export const LetterConnectionActivity = ({
                 return (
                   <div
                     key={`${letter}-${index}`}
-                    className={`letter-container w-14 h-14 rounded-lg font-bold text-lg flex items-center justify-center cursor-pointer transition-all select-none relative z-30 ${
+                    className={`letter-container w-12 h-12 lg:w-14 lg:h-14 rounded-lg font-bold text-lg flex items-center justify-center cursor-pointer transition-all select-none relative z-30 ${
                       isCompleted
                         ? stepData.isCorrect
-                          ? 'bg-green-200 text-green-800'
-                          : 'bg-gray-200 text-gray-600'
+                          ? 'bg-green-200 text-green-800 shadow-sm'
+                          : 'bg-gray-200 text-gray-600 shadow-sm'
                         : isProcessing
                           ? 'bg-gray-200 text-gray-600 cursor-not-allowed'
                           : isHighlighted
-                            ? 'bg-orange-500 text-white shadow-lg scale-105'
-                            : 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900 shadow-md hover:shadow-lg hover:scale-105'
+                            ? 'bg-orange-500 text-white shadow-lg scale-105 border border-orange-300'
+                            : 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900 shadow-md hover:shadow-lg hover:scale-105 border border-yellow-600'
                     }`}
                     data-letter-index={index}
                     onMouseDown={(e) => {
@@ -569,20 +733,51 @@ export const LetterConnectionActivity = ({
               })}
             </div>
             
-            {/* Word display */}
-            <div className="text-center mb-4 relative z-20 bg-white p-2 rounded-lg">
-              <p className="text-xs text-gray-600 mb-1">Connected:</p>
-              <p className="text-lg font-bold text-blue-600">
-                {connectedLetters.join('') || dragPath.join('') || 'None yet'}
-              </p>
-              <p className="text-xs text-gray-500">
-                Target: {currentQuestion.answer.toUpperCase()}
-              </p>
+            {/* FIXED: Compact Word display */}
+            <div className="text-center mb-4 relative z-20">
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1 uppercase tracking-wider">Connected Word</p>
+                <p className="text-xl font-bold text-blue-600 mb-2 min-h-[28px] flex items-center justify-center">
+                  {connectedLetters.join('') || dragPath.join('') || '---'}
+                </p>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">
+                    Target: <span className="font-bold text-gray-700">{currentQuestion.answer.toUpperCase()}</span>
+                  </span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    connectedLetters.length > 0 || dragPath.length > 0
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {connectedLetters.length > 0 ? connectedLetters.length : dragPath.length || 0} / {currentQuestion.answer.length}
+                  </span>
+                </div>
+              </div>
             </div>
             
-            {/* Connection Lines - FIXED: Never show lines after completion */}
+            {/* FIXED: Compact Instructions */}
+            <div className="text-center text-xs text-gray-600">
+              {isCompleted ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <span>{stepData.isCorrect ? '✅' : '❌'}</span>
+                  <span>{stepData.isCorrect ? 'Perfect!' : 'Keep practicing!'}</span>
+                </div>
+              ) : isProcessing ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                  <span>Checking your answer...</span>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p>Drag from letter to letter to spell the word</p>
+                  <p className="text-xs text-gray-400">Letters must be connected (adjacent)</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Connection Lines - Only show during active drawing */}
             <svg className="absolute inset-0 w-full h-full z-10 pointer-events-none">
-              {/* Final drawn path - only show during active drawing, not after completion */}
+              {/* Active drawing path */}
               {!isCompleted && isDrawing && dragPath.length > 1 && (
                 <polyline
                   points={dragPath
@@ -592,27 +787,37 @@ export const LetterConnectionActivity = ({
                     })
                     .filter(Boolean)
                     .join(" ")}
-                  stroke="orange"
+                  stroke="url(#lineGradient)"
                   strokeWidth="4"
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  opacity="0.9"
                 />
               )}
 
-              {/* Temp line preview while dragging - only during active drawing */}
+              {/* Temp line preview */}
               {!isCompleted && isDrawing && tempLine && (
                 <line
                   x1={tempLine.x1}
                   y1={tempLine.y1}
                   x2={tempLine.x2}
                   y2={tempLine.y2}
-                  stroke="rgba(249, 115, 22, 0.5)"
+                  stroke="rgba(249, 115, 22, 0.6)"
                   strokeWidth="3"
-                  strokeDasharray="6 4"
+                  strokeDasharray="6 3"
                   strokeLinecap="round"
                 />
               )}
+              
+              {/* Line gradient definition */}
+              <defs>
+                <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#f97316" />
+                  <stop offset="50%" stopColor="#ea580c" />
+                  <stop offset="100%" stopColor="#dc2626" />
+                </linearGradient>
+              </defs>
             </svg>
           </div>
         </div>

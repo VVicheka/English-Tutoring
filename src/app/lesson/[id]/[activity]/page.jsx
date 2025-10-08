@@ -194,16 +194,6 @@ export default function ActivityPage() {
   // Matching activity completion state
   const [matchingCompleted, setMatchingCompleted] = useState(false);
 
-  // Helper function to reset activity states
-  const resetActivityStates = () => {
-    setStoryPage(0);
-    setCreativeQuizStep(0);
-    setWordConnectionStep(0);
-    setWordConnectionCompletedSteps({});
-    setCreativeQuizCompletedSteps({});
-    setMatchingCompleted(false);
-  };
-
   // Helper function to get expanded activities
   const getExpandedActivities = (lesson) => {
     if (!lesson?.content?.practice?.activityB) {
@@ -255,80 +245,177 @@ export default function ActivityPage() {
     }
   }, [lessonId, currentActivity, router]);
 
-  // Reset states when activity changes
+  // FIXED: Don't reset states when activity changes - maintain completed state
   useEffect(() => {
-    setStoryPage(0);
-    setWordConnectionStep(0);
-    setCreativeQuizStep(0);
-    setCreativeQuizCompletedSteps({});
-    setWordConnectionCompletedSteps({});
-    setMatchingCompleted(false);
+    // Only reset if this is a fresh load (no existing state)
+    // Check if we have saved progress for this activity
+    const hasStoredProgress = typeof window !== 'undefined' && (
+      (currentActivity === 'matching' && window.matchingActivityProgress) ||
+      (currentActivity === 'fillwords' && window.fillwordsActivityProgress) ||
+      (currentActivity === 'story' && window.storyActivityProgress) ||
+      (currentActivity === 'quiz' && window.quizActivityProgress)
+    );
+
+    if (!hasStoredProgress) {
+      // Only reset if no stored progress exists
+      if (currentActivity === 'story') {
+        setStoryPage(0);
+      } else if (currentActivity === 'fillwords') {
+        setWordConnectionStep(0);
+        setWordConnectionCompletedSteps({});
+      } else if (currentActivity === 'quiz') {
+        setCreativeQuizStep(0);
+        setCreativeQuizCompletedSteps({});
+      } else if (currentActivity === 'matching') {
+        setMatchingCompleted(false);
+      }
+    }
   }, [currentActivity]);
 
-  // Handle Next Navigation - FIXED to allow progression after any attempt
-  const handleNext = () => {
+  // FIXED: Sequential navigation - one step at a time
+  const getNavigationState = () => {
+    if (!lesson) return { canGoNext: false, canGoPrevious: false, nextLabel: 'Next', prevLabel: 'Previous' };
+
     const expandedActivities = getExpandedActivities(lesson);
     const currentIndex = expandedActivities.indexOf(currentActivity);
     
-    // Story activity logic
-    if (currentActivity === 'story' && lesson?.content?.story?.sentences) {
-      const totalStoryPages = lesson.content.story.sentences.length;
+    // Always allow previous unless at very beginning
+    const canGoPrevious = currentIndex > 0 || 
+      (currentActivity === 'story' && storyPage > 0) ||
+      (currentActivity === 'fillwords' && wordConnectionStep > 0) ||
+      (currentActivity === 'quiz' && creativeQuizStep > 0);
+
+    // Determine if we can go next
+    let canGoNext = false;
+    let nextLabel = 'Next';
+
+    // Story activity - can always go to next page if available
+    if (currentActivity === 'story') {
+      const totalStoryPages = lesson?.content?.story?.sentences?.length || 0;
+      const hasNextPage = storyPage < totalStoryPages - 1;
+      const hasNextActivity = currentIndex < expandedActivities.length - 1;
+      
+      canGoNext = hasNextPage || hasNextActivity;
+      
+      if (hasNextPage) {
+        nextLabel = 'Next Page';
+      } else if (hasNextActivity) {
+        nextLabel = 'Next Activity';
+      } else {
+        nextLabel = 'Finish';
+      }
+    }
+    // Fill words activity
+    else if (currentActivity === 'fillwords') {
+      const totalSteps = lesson?.content?.practice?.activityB?.questions?.length || 0;
+      const hasNextStep = wordConnectionStep < totalSteps - 1;
+      const hasNextActivity = currentIndex < expandedActivities.length - 1;
+      const currentStepAttempted = wordConnectionCompletedSteps[wordConnectionStep];
+      
+      if (hasNextStep) {
+        canGoNext = !!currentStepAttempted; // Can proceed if current step attempted
+        nextLabel = 'Next Word';
+      } else {
+        // Last step - can proceed if attempted
+        canGoNext = !!currentStepAttempted;
+        nextLabel = hasNextActivity ? 'Next Activity' : 'Finish';
+      }
+    }
+    // Quiz activity
+    else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
+      const totalSteps = lesson.content.quiz.actions.length;
+      const hasNextStep = creativeQuizStep < totalSteps - 1;
+      const hasNextActivity = currentIndex < expandedActivities.length - 1;
+      const currentStepAttempted = creativeQuizCompletedSteps[creativeQuizStep];
+      
+      if (hasNextStep) {
+        canGoNext = !!currentStepAttempted;
+        nextLabel = 'Next Question';
+      } else {
+        canGoNext = !!currentStepAttempted;
+        nextLabel = hasNextActivity ? 'Next Activity' : 'Finish';
+      }
+    }
+    // Matching activity
+    else if (currentActivity === 'matching') {
+      const hasNextActivity = currentIndex < expandedActivities.length - 1;
+      canGoNext = matchingCompleted;
+      nextLabel = hasNextActivity ? 'Next Activity' : 'Finish';
+    }
+    // Other activities (warmup, vocabulary)
+    else {
+      const hasNextActivity = currentIndex < expandedActivities.length - 1;
+      canGoNext = true; // Can always proceed from warmup/vocabulary
+      nextLabel = hasNextActivity ? 'Next Activity' : 'Finish';
+    }
+
+    return { 
+      canGoNext, 
+      canGoPrevious, 
+      nextLabel, 
+      prevLabel: 'Previous' 
+    };
+  };
+
+  // FIXED: Sequential next navigation
+  const handleNext = () => {
+    const expandedActivities = getExpandedActivities(lesson);
+    const currentIndex = expandedActivities.indexOf(currentActivity);
+
+    // Story activity - go page by page
+    if (currentActivity === 'story') {
+      const totalStoryPages = lesson?.content?.story?.sentences?.length || 0;
       if (storyPage < totalStoryPages - 1) {
         setStoryPage(prev => prev + 1);
         return;
       }
+      // At last page, go to next activity
     }
-    
-    // FIXED: Creative Quiz activity logic - allow progression after any attempt
-    if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
-      const totalSteps = lesson.content.quiz.actions.length;
-      const allStepsCompleted = Object.keys(creativeQuizCompletedSteps).length === totalSteps;
-      
-      if (creativeQuizStep < totalSteps - 1) {
-        const currentStepAttempted = creativeQuizCompletedSteps[creativeQuizStep]; // Any attempt
-        if (currentStepAttempted) {
-          setCreativeQuizStep(prev => prev + 1);
-        }
-        return;
-      }
-      
-      // Only allow progression if all steps have been attempted
-      if (!allStepsCompleted) {
-        return;
-      }
-    }
-    
-    // FIXED: Word Connection activity logic - allow progression after any attempt
-    if (currentActivity === 'fillwords') {
+    // Fill words - go step by step
+    else if (currentActivity === 'fillwords') {
       const totalSteps = lesson?.content?.practice?.activityB?.questions?.length || 0;
-      const allStepsCompleted = Object.keys(wordConnectionCompletedSteps).length === totalSteps;
+      const currentStepAttempted = wordConnectionCompletedSteps[wordConnectionStep];
+      
+      if (!currentStepAttempted) {
+        console.log('Cannot proceed - current step not attempted');
+        return;
+      }
       
       if (wordConnectionStep < totalSteps - 1) {
-        const currentStepAttempted = wordConnectionCompletedSteps[wordConnectionStep]; // Any attempt
-        if (currentStepAttempted) {
-          setWordConnectionStep(prev => prev + 1);
-        }
+        setWordConnectionStep(prev => prev + 1);
+        return;
+      }
+      // At last step, go to next activity
+    }
+    // Quiz - go step by step
+    else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
+      const totalSteps = lesson.content.quiz.actions.length;
+      const currentStepAttempted = creativeQuizCompletedSteps[creativeQuizStep];
+      
+      if (!currentStepAttempted) {
+        console.log('Cannot proceed - current quiz step not attempted');
         return;
       }
       
-      if (!allStepsCompleted) {
+      if (creativeQuizStep < totalSteps - 1) {
+        setCreativeQuizStep(prev => prev + 1);
         return;
       }
+      // At last step, go to next activity
     }
-
-    // Matching activity logic - require completion before proceeding
-    if (currentActivity === 'matching') {
+    // Matching - must be completed
+    else if (currentActivity === 'matching') {
       if (!matchingCompleted) {
+        console.log('Cannot proceed - matching not completed');
         return;
       }
     }
 
-    // Normal activity navigation
+    // Navigate to next activity
     const hasNext = currentIndex < expandedActivities.length - 1;
     
     if (hasNext) {
       const nextActivity = expandedActivities[currentIndex + 1];
-      resetActivityStates();
       router.push(`/lesson/${lessonId}/${nextActivity}`);
     } else {
       console.log('Navigating to complete page');
@@ -336,40 +423,41 @@ export default function ActivityPage() {
     }
   };
 
-  // Handle Previous Navigation
+  // FIXED: Sequential previous navigation
   const handlePrevious = () => {
-    // Story activity special handling
+    const expandedActivities = getExpandedActivities(lesson);
+    const currentIndex = expandedActivities.indexOf(currentActivity);
+
+    // Story activity - go back page by page
     if (currentActivity === 'story' && storyPage > 0) {
       setStoryPage(prev => prev - 1);
       return;
     }
-
-    // Fill words activity special handling
-    if (currentActivity === 'fillwords' && wordConnectionStep > 0) {
+    // Fill words - go back step by step
+    else if (currentActivity === 'fillwords' && wordConnectionStep > 0) {
       setWordConnectionStep(prev => prev - 1);
       return;
     }
-
-    // Creative quiz activity special handling
-    if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching' && creativeQuizStep > 0) {
+    // Quiz - go back step by step
+    else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching' && creativeQuizStep > 0) {
       setCreativeQuizStep(prev => prev - 1);
       return;
     }
 
-    // Normal activity navigation
-    const expandedActivities = getExpandedActivities(lesson);
-    const currentIndex = expandedActivities.indexOf(currentActivity);
-    const hasPrevious = currentIndex > 0;
-    
-    if (hasPrevious) {
+    // Navigate to previous activity
+    if (currentIndex > 0) {
       const prevActivity = expandedActivities[currentIndex - 1];
       
-      resetActivityStates();
-      
-      // If going back TO a story activity, set to last page
+      // Navigate to the last position of the previous activity
       if (prevActivity === 'story' && lesson?.content?.story?.sentences) {
         const totalStoryPages = lesson.content.story.sentences.length;
         setStoryPage(totalStoryPages - 1);
+      } else if (prevActivity === 'fillwords' && lesson?.content?.practice?.activityB?.questions) {
+        const totalSteps = lesson.content.practice.activityB.questions.length;
+        setWordConnectionStep(totalSteps - 1);
+      } else if (prevActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
+        const totalSteps = lesson.content.quiz.actions.length;
+        setCreativeQuizStep(totalSteps - 1);
       }
       
       router.push(`/lesson/${lessonId}/${prevActivity}`);
@@ -388,105 +476,11 @@ export default function ActivityPage() {
     
     if (hasNext) {
       const nextActivity = expandedActivities[currentIndex + 1];
-      resetActivityStates();
       router.push(`/lesson/${lessonId}/${nextActivity}`);
     } else {
       console.log('Auto-navigating to complete page');
       router.push(`/lesson/${lessonId}/complete`);
     }
-  };
-
-  // FIXED: Navigation state - allow progression after any attempt
-  const getNavigationState = () => {
-    if (!lesson) return { canGoNext: false, canGoPrevious: false, nextLabel: 'Next', prevLabel: 'Previous' };
-
-    const expandedActivities = getExpandedActivities(lesson);
-    const currentIndex = expandedActivities.indexOf(currentActivity);
-    const hasNext = currentIndex < expandedActivities.length - 1;
-    const hasPrevious = currentIndex > 0;
-
-    // Story activity
-    if (currentActivity === 'story') {
-      const totalStoryPages = lesson?.content?.story?.sentences?.length || 0;
-      const canGoNext = (storyPage < totalStoryPages - 1) || hasNext;
-      const canGoPrevious = (storyPage > 0) || hasPrevious;
-      const nextLabel = storyPage < totalStoryPages - 1 ? 'Next Page' : hasNext ? 'Next' : 'Finish';
-      const prevLabel = storyPage > 0 ? 'Previous Page' : 'Previous';
-      
-      return { canGoNext, canGoPrevious, nextLabel, prevLabel };
-    }
-
-    // Matching activity
-    if (currentActivity === 'matching') {
-      const canGoNext = matchingCompleted;
-      const canGoPrevious = hasPrevious;
-      const nextLabel = matchingCompleted ? (hasNext ? 'Next' : 'Finish') : 'Complete Matching';
-      const prevLabel = 'Previous';
-      
-      return { canGoNext, canGoPrevious, nextLabel, prevLabel };
-    }
-
-    // FIXED: Fill words activity - allow progression after any attempt
-    if (currentActivity === 'fillwords') {
-      const totalSteps = lesson?.content?.practice?.activityB?.questions?.length || 0;
-      const currentStepAttempted = wordConnectionCompletedSteps[wordConnectionStep]; // Any attempt
-      const allStepsCompleted = Object.keys(wordConnectionCompletedSteps).length === totalSteps;
-      
-      const canGoNext = (wordConnectionStep < totalSteps - 1 && currentStepAttempted) || 
-                       (wordConnectionStep === totalSteps - 1 && allStepsCompleted);
-      
-      const canGoPrevious = (wordConnectionStep > 0) || hasPrevious;
-      
-      let nextLabel = 'Next Word';
-      if (wordConnectionStep === totalSteps - 1) {
-        if (allStepsCompleted) {
-          nextLabel = hasNext ? 'Next' : 'Finish';
-        } else {
-          nextLabel = 'Complete Word';
-        }
-      } else if (!currentStepAttempted) {
-        nextLabel = 'Complete Word';
-      }
-      
-      const prevLabel = wordConnectionStep > 0 ? 'Previous Word' : 'Previous';
-      
-      return { canGoNext, canGoPrevious, nextLabel, prevLabel };
-    }
-
-    // FIXED: Creative quiz activity - allow progression after any attempt
-    if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
-      const totalSteps = lesson.content.quiz.actions.length;
-      const currentStepAttempted = creativeQuizCompletedSteps[creativeQuizStep]; // Any attempt
-      const allStepsCompleted = Object.keys(creativeQuizCompletedSteps).length === totalSteps;
-      
-      const canGoNext = (creativeQuizStep < totalSteps - 1 && currentStepAttempted) || 
-                       (creativeQuizStep === totalSteps - 1 && allStepsCompleted);
-      
-      const canGoPrevious = (creativeQuizStep > 0) || hasPrevious;
-      
-      let nextLabel = 'Next Question';
-      if (creativeQuizStep === totalSteps - 1) {
-        if (allStepsCompleted) {
-          nextLabel = hasNext ? 'Next' : 'Finish';
-        } else {
-          nextLabel = 'Complete Question';
-        }
-      } else if (!currentStepAttempted) {
-        nextLabel = 'Complete Question';
-      }
-      
-      const prevLabel = creativeQuizStep > 0 ? 'Previous Question' : 'Previous';
-      
-      return { canGoNext, canGoPrevious, nextLabel, prevLabel };
-    }
-
-    // Default for other activities
-    return {
-      canGoNext: hasNext,
-      canGoPrevious: hasPrevious,
-      nextLabel: hasNext ? 'Next' : 'Finish',
-      prevLabel: 'Previous'
-    };
   };
 
   // Activity display name with step info
@@ -647,18 +641,11 @@ export default function ActivityPage() {
                   [stepIndex]: stepData
                 }));
                 
-                // FIXED: Auto-advance after any attempt, not just correct ones
-                const totalSteps = lesson?.content?.practice?.activityB?.questions?.length || 0;
-                if (stepIndex < totalSteps - 1) {
-                  setTimeout(() => {
-                    console.log('Auto-advancing to next step');
-                    setWordConnectionStep(stepIndex + 1);
-                  }, 2000);
-                }
+                // Don't auto-advance - let user navigate manually
               }}
               onComplete={() => {
-                console.log('All fillwords completed, navigating to next activity');
-                navigateToNext();
+                console.log('All fillwords completed');
+                // Don't auto-navigate - let user control navigation
               }}
             />
           );
@@ -676,16 +663,11 @@ export default function ActivityPage() {
                   [stepIndex]: stepData
                 }));
                 
-                // FIXED: Auto-advance after any attempt, not just correct ones
-                const totalSteps = lesson?.content?.quiz?.actions?.length || 0;
-                if (stepIndex < totalSteps - 1) {
-                  setTimeout(() => {
-                    setCreativeQuizStep(stepIndex + 1);
-                  }, 2000);
-                }
+                // Don't auto-advance - let user navigate manually
               }}
               onComplete={() => {
-                navigateToNext();
+                console.log('All quiz completed');
+                // Don't auto-navigate - let user control navigation
               }}
             />
           );
