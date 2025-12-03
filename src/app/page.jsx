@@ -50,7 +50,7 @@ const quizData = [
 ];
 
 // Fixed Navigation Buttons Component
-const NavigationButtons = ({ user, userProfile }) => {
+const NavigationButtons = ({ user, userProfile, router }) => {
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -66,7 +66,7 @@ const NavigationButtons = ({ user, userProfile }) => {
       <div className="flex flex-col items-center gap-1">
         <button 
           className="w-14 h-14 bg-blue-300 hover:bg-blue-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105 overflow-hidden"
-          onClick={() => console.log('Profile clicked')}
+          onClick={() => router.push('/profile')}
         >
           {userProfile?.avatar_url ? (
             <Image
@@ -85,22 +85,22 @@ const NavigationButtons = ({ user, userProfile }) => {
         </span>
       </div>
       
-      {/* Progress Button Group */}
-      <div className="flex flex-col items-center gap-1">
+      {/* Dashboard Button Group */}
+      {/* <div className="flex flex-col items-center gap-1">
         <button 
           className="w-14 h-14 bg-green-300 hover:bg-green-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
-          onClick={() => console.log('Progress clicked')}
+          onClick={() => router.push('/dashboard')}
         >
           <span className="text-lg">📊</span>
         </button>
-        <span className="text-sm font-medium text-gray-700">Progress</span>
-      </div>
+        <span className="text-sm font-medium text-gray-700">Dashboard</span>
+      </div> */}
       
       {/* Details Button Group */}
       <div className="flex flex-col items-center gap-1">
         <button 
           className="w-14 h-14 bg-purple-300 hover:bg-purple-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
-          onClick={() => console.log('Details clicked')}
+          onClick={() => router.push('/details')}
         >
           <span className="text-lg">📋</span>
         </button>
@@ -556,7 +556,7 @@ export default function HomePage() {
   return (
     <div className='min-h-screen bg-sky-100'>
       {/* Fixed Navigation Buttons - only show if authenticated */}
-      {user && <NavigationButtons user={user} userProfile={userProfile} />}
+      {user && <NavigationButtons user={user} userProfile={userProfile} router={router} />}
 
       <SVGRoadmap 
         curriculum={curriculum}

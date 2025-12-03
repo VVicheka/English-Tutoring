@@ -159,7 +159,7 @@ export const StoryActivity = ({ content, storyPage = 0, onStoryPageChange }) => 
   );
 };
 
-// FIXED: Matching Activity - For activityA (drag & drop) - NOW WITH onComplete PROP
+// FIXED: Matching Activity - Now properly passes the callback parameters
 export const MatchingActivity = ({ content, onComplete }) => {
   // Add safety check
   if (!content) {
@@ -176,7 +176,12 @@ export const MatchingActivity = ({ content, onComplete }) => {
     <div className="h-full">
       <DragableMatchingActivity 
         content={content} 
-        onComplete={onComplete}
+        onComplete={(correctCount, totalCount) => {
+          // Pass both parameters to the parent
+          if (onComplete) {
+            onComplete(correctCount, totalCount);
+          }
+        }}
       />
     </div>
   );

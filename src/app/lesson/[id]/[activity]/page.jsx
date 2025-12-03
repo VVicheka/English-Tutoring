@@ -12,8 +12,8 @@ import {
 } from '../../components/activityComponents';
 import { useTextToSpeech } from '../../components/useTextToSpeech';
 
-// Updated Progress Bar Component with story support
-const ProgressBar = ({ currentIndex, totalActivities, lessonTitle, lessonId, customProgress, activityDisplayName, onHome }) => {
+// Progress Bar Component
+const ProgressBar = ({ currentIndex, totalActivities, lessonTitle, lessonId, customProgress, currentPage, totalPages, onHome }) => {
   const percentage = customProgress !== undefined 
     ? customProgress 
     : ((currentIndex + 1) / totalActivities) * 100;
@@ -38,8 +38,8 @@ const ProgressBar = ({ currentIndex, totalActivities, lessonTitle, lessonId, cus
               <h1 className="text-sm md:text-lg font-bold text-gray-800 truncate">{lessonTitle}</h1>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-xs md:text-sm text-gray-600 flex-shrink-0">
-                {activityDisplayName || `${currentIndex + 1} of ${totalActivities}`}
+              <span className="text-xs md:text-sm text-gray-600 flex-shrink-0 font-medium">
+                {currentPage}/{totalPages}
               </span>
               <span className="text-sm font-semibold text-blue-600">
                 {Math.round(percentage)}%
@@ -61,7 +61,7 @@ const ProgressBar = ({ currentIndex, totalActivities, lessonTitle, lessonId, cus
   );
 };
 
-// Updated Navigation Component with story support
+// Navigation Component
 const ActivityNavigation = ({ 
   currentActivity, 
   lessonId, 
@@ -112,7 +112,7 @@ const ActivityNavigation = ({
   );
 };
 
-// Enhanced Speech Control Panel
+// Speech Control Panel
 const SpeechControlPanel = () => {
   const { stop, isSpeaking, isSupported } = useTextToSpeech();
 
@@ -193,8 +193,112 @@ export default function ActivityPage() {
   
   // Matching activity completion state
   const [matchingCompleted, setMatchingCompleted] = useState(false);
+  
+  // Score tracking state
+  const [activityScores, setActivityScores] = useState({
+    matching: 0,
+    fillwords: 0,
+    quiz: 0
+  });
 
-  // Helper function to get expanded activities
+  // FIXED: Helper function to save scores immediately
+  const saveScoresToLocalStorage = (scores, completed) => {
+    if (!lessonId) return;
+    
+    const scoreData = {
+      lessonId: lessonId,
+      scores: scores,
+      totalScore: scores.matching + scores.fillwords + scores.quiz,
+      completedSteps: {
+        matching: completed.matching,
+        fillwords: completed.fillwords,
+        quiz: completed.quiz
+      },
+      timestamp: Date.now()
+    };
+    
+    try {
+      localStorage.setItem(`lesson_${lessonId}_scores`, JSON.stringify(scoreData));
+      console.log('✅ Scores saved to localStorage:', scoreData);
+      return true;
+    } catch (e) {
+      console.error('❌ Error saving to localStorage:', e);
+      return false;
+    }
+  };
+
+  // FIXED: Auto-save scores whenever they change
+  useEffect(() => {
+    if (!lesson || !lessonId) return;
+    
+    // Debounce to avoid too many saves
+    const timeoutId = setTimeout(() => {
+      saveScoresToLocalStorage(activityScores, {
+        matching: matchingCompleted,
+        fillwords: wordConnectionCompletedSteps,
+        quiz: creativeQuizCompletedSteps
+      });
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [activityScores, matchingCompleted, wordConnectionCompletedSteps, creativeQuizCompletedSteps, lessonId, lesson]);
+
+  // FIXED: Load existing scores on mount
+  useEffect(() => {
+    if (!lessonId || typeof window === 'undefined') return;
+    
+    try {
+      const saved = localStorage.getItem(`lesson_${lessonId}_scores`);
+      if (saved) {
+        const scoreData = JSON.parse(saved);
+        console.log('📊 Loading existing scores:', scoreData);
+        
+        if (scoreData.scores) {
+          setActivityScores(scoreData.scores);
+        }
+        
+        if (scoreData.completedSteps) {
+          if (scoreData.completedSteps.matching) {
+            setMatchingCompleted(scoreData.completedSteps.matching);
+          }
+          if (scoreData.completedSteps.fillwords) {
+            setWordConnectionCompletedSteps(scoreData.completedSteps.fillwords);
+          }
+          if (scoreData.completedSteps.quiz) {
+            setCreativeQuizCompletedSteps(scoreData.completedSteps.quiz);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error loading scores:', e);
+    }
+  }, [lessonId]);
+
+  // Calculate total score out of 100
+  const calculateTotalScore = () => {
+    return activityScores.matching + activityScores.fillwords + activityScores.quiz;
+  };
+
+  // Calculate score for matching activity (20 points)
+  const calculateMatchingScore = (correctMatches, totalPairs) => {
+    if (totalPairs === 0) return 0;
+    return Math.round((correctMatches / totalPairs) * 20);
+  };
+
+  // Calculate score for fill words activity (40 points)
+  const calculateFillWordsScore = (completedSteps, totalQuestions) => {
+    if (totalQuestions === 0) return 0;
+    const correctCount = Object.values(completedSteps).filter(step => step.isCorrect).length;
+    return Math.round((correctCount / totalQuestions) * 40);
+  };
+
+  // Calculate score for quiz activity (40 points)
+  const calculateQuizScore = (completedSteps, totalActions) => {
+    if (totalActions === 0) return 0;
+    const correctCount = Object.values(completedSteps).filter(step => step.isCorrect).length;
+    return Math.round((correctCount / totalActions) * 40);
+  };
+
   const getExpandedActivities = (lesson) => {
     if (!lesson?.content?.practice?.activityB) {
       return lesson.activities;
@@ -206,6 +310,62 @@ export default function ActivityPage() {
       activities.splice(practiceIndex, 1, 'matching', 'fillwords');
     }
     return activities;
+  };
+
+  // Calculate total pages across all activities
+  const getTotalPages = (lesson) => {
+    if (!lesson) return 0;
+    
+    let totalPages = 0;
+    const expandedActivities = getExpandedActivities(lesson);
+    
+    expandedActivities.forEach(activity => {
+      if (activity === 'story' && lesson?.content?.story?.sentences) {
+        totalPages += lesson.content.story.sentences.length;
+      } else if (activity === 'fillwords' && lesson?.content?.practice?.activityB?.questions) {
+        totalPages += lesson.content.practice.activityB.questions.length;
+      } else if (activity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
+        totalPages += lesson.content.quiz.actions.length;
+      } else {
+        totalPages += 1;
+      }
+    });
+    
+    return totalPages;
+  };
+
+  // Calculate current page number
+  const getCurrentPage = (lesson) => {
+    if (!lesson) return 1;
+    
+    const expandedActivities = getExpandedActivities(lesson);
+    const currentIndex = expandedActivities.indexOf(currentActivity);
+    let currentPage = 0;
+    
+    for (let i = 0; i < currentIndex; i++) {
+      const activity = expandedActivities[i];
+      if (activity === 'story' && lesson?.content?.story?.sentences) {
+        currentPage += lesson.content.story.sentences.length;
+      } else if (activity === 'fillwords' && lesson?.content?.practice?.activityB?.questions) {
+        currentPage += lesson.content.practice.activityB.questions.length;
+      } else if (activity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
+        currentPage += lesson.content.quiz.actions.length;
+      } else {
+        currentPage += 1;
+      }
+    }
+    
+    if (currentActivity === 'story') {
+      currentPage += storyPage + 1;
+    } else if (currentActivity === 'fillwords') {
+      currentPage += wordConnectionStep + 1;
+    } else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
+      currentPage += creativeQuizStep + 1;
+    } else {
+      currentPage += 1;
+    }
+    
+    return currentPage;
   };
 
   // Load lesson data
@@ -235,6 +395,32 @@ export default function ActivityPage() {
         return;
       }
 
+      // If this is the first activity (warmup), clear any old progress
+      if (currentActivity === expandedActivities[0]) {
+        console.log('🆕 Starting lesson from beginning - checking if we should clear old progress');
+        
+        // Check if user explicitly wants to retry
+        if (typeof window !== 'undefined') {
+          try {
+            const hasScores = localStorage.getItem(`lesson_${lessonId}_scores`);
+            const hasMatching = localStorage.getItem(`lesson_${lessonId}_matching`);
+            const hasFillwords = localStorage.getItem(`lesson_${lessonId}_fillwords`);
+            const hasQuiz = localStorage.getItem(`lesson_${lessonId}_quiz`);
+            
+            // If no scores but has activity progress, this is a retry - clear everything
+            if (!hasScores && (hasMatching || hasFillwords || hasQuiz)) {
+              console.log('🔄 Detected retry attempt - clearing all activity progress');
+              localStorage.removeItem(`lesson_${lessonId}_matching`);
+              localStorage.removeItem(`lesson_${lessonId}_fillwords`);
+              localStorage.removeItem(`lesson_${lessonId}_quiz`);
+              localStorage.removeItem(`lesson_${lessonId}_story`);
+            }
+          } catch (e) {
+            console.error('Error checking localStorage:', e);
+          }
+        }
+      }
+
       console.log('Setting lesson data and stopping loading');
       setLesson(lessonData);
       setLoading(false);
@@ -245,51 +431,65 @@ export default function ActivityPage() {
     }
   }, [lessonId, currentActivity, router]);
 
-  // FIXED: Don't reset states when activity changes - maintain completed state
   useEffect(() => {
-    // Only reset if this is a fresh load (no existing state)
-    // Check if we have saved progress for this activity
-    const hasStoredProgress = typeof window !== 'undefined' && (
-      (currentActivity === 'matching' && window.matchingActivityProgress) ||
-      (currentActivity === 'fillwords' && window.fillwordsActivityProgress) ||
-      (currentActivity === 'story' && window.storyActivityProgress) ||
-      (currentActivity === 'quiz' && window.quizActivityProgress)
-    );
+    if (typeof window !== 'undefined') {
+      try {
+        const hasStoredProgress = 
+          (currentActivity === 'matching' && localStorage.getItem(`lesson_${lessonId}_matching`)) ||
+          (currentActivity === 'fillwords' && localStorage.getItem(`lesson_${lessonId}_fillwords`)) ||
+          (currentActivity === 'story' && localStorage.getItem(`lesson_${lessonId}_story`)) ||
+          (currentActivity === 'quiz' && localStorage.getItem(`lesson_${lessonId}_quiz`));
 
-    if (!hasStoredProgress) {
-      // Only reset if no stored progress exists
-      if (currentActivity === 'story') {
-        setStoryPage(0);
-      } else if (currentActivity === 'fillwords') {
-        setWordConnectionStep(0);
-        setWordConnectionCompletedSteps({});
-      } else if (currentActivity === 'quiz') {
-        setCreativeQuizStep(0);
-        setCreativeQuizCompletedSteps({});
-      } else if (currentActivity === 'matching') {
-        setMatchingCompleted(false);
+        console.log('Activity changed to:', currentActivity, 'Has stored progress:', hasStoredProgress);
+
+        if (!hasStoredProgress) {
+          if (currentActivity === 'story') {
+            setStoryPage(0);
+          } else if (currentActivity === 'fillwords') {
+            setWordConnectionStep(0);
+            setWordConnectionCompletedSteps({});
+          } else if (currentActivity === 'quiz') {
+            setCreativeQuizStep(0);
+            setCreativeQuizCompletedSteps({});
+          } else if (currentActivity === 'matching') {
+            setMatchingCompleted(false);
+          }
+        }
+      } catch (e) {
+        console.error('Error checking localStorage:', e);
       }
     }
-  }, [currentActivity]);
+  }, [currentActivity, lessonId]);
 
-  // FIXED: Sequential navigation - one step at a time
   const getNavigationState = () => {
     if (!lesson) return { canGoNext: false, canGoPrevious: false, nextLabel: 'Next', prevLabel: 'Previous' };
 
     const expandedActivities = getExpandedActivities(lesson);
     const currentIndex = expandedActivities.indexOf(currentActivity);
     
-    // Always allow previous unless at very beginning
-    const canGoPrevious = currentIndex > 0 || 
-      (currentActivity === 'story' && storyPage > 0) ||
-      (currentActivity === 'fillwords' && wordConnectionStep > 0) ||
-      (currentActivity === 'quiz' && creativeQuizStep > 0);
+    const isMatchingCompleted = currentActivity === 'matching' && matchingCompleted;
+    const totalFillWordsSteps = lesson?.content?.practice?.activityB?.questions?.length || 0;
+    const isFillWordsCompleted = currentActivity === 'fillwords' && 
+      Object.keys(wordConnectionCompletedSteps).length === totalFillWordsSteps && totalFillWordsSteps > 0;
+    const totalQuizSteps = lesson?.content?.quiz?.actions?.length || 0;
+    const isQuizCompleted = currentActivity === 'quiz' && 
+      lesson?.content?.quiz?.type === 'character-matching' &&
+      Object.keys(creativeQuizCompletedSteps).length === totalQuizSteps && totalQuizSteps > 0;
+    
+    let canGoPrevious = false;
+    
+    if (currentActivity === 'fillwords' || (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching')) {
+      canGoPrevious = false;
+    } else if (isMatchingCompleted) {
+      canGoPrevious = false;
+    } else {
+      canGoPrevious = currentIndex > 0 || 
+        (currentActivity === 'story' && storyPage > 0);
+    }
 
-    // Determine if we can go next
     let canGoNext = false;
     let nextLabel = 'Next';
 
-    // Story activity - can always go to next page if available
     if (currentActivity === 'story') {
       const totalStoryPages = lesson?.content?.story?.sentences?.length || 0;
       const hasNextPage = storyPage < totalStoryPages - 1;
@@ -304,25 +504,20 @@ export default function ActivityPage() {
       } else {
         nextLabel = 'Finish';
       }
-    }
-    // Fill words activity
-    else if (currentActivity === 'fillwords') {
+    } else if (currentActivity === 'fillwords') {
       const totalSteps = lesson?.content?.practice?.activityB?.questions?.length || 0;
       const hasNextStep = wordConnectionStep < totalSteps - 1;
       const hasNextActivity = currentIndex < expandedActivities.length - 1;
       const currentStepAttempted = wordConnectionCompletedSteps[wordConnectionStep];
       
       if (hasNextStep) {
-        canGoNext = !!currentStepAttempted; // Can proceed if current step attempted
+        canGoNext = !!currentStepAttempted;
         nextLabel = 'Next Word';
       } else {
-        // Last step - can proceed if attempted
         canGoNext = !!currentStepAttempted;
         nextLabel = hasNextActivity ? 'Next Activity' : 'Finish';
       }
-    }
-    // Quiz activity
-    else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
+    } else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
       const totalSteps = lesson.content.quiz.actions.length;
       const hasNextStep = creativeQuizStep < totalSteps - 1;
       const hasNextActivity = currentIndex < expandedActivities.length - 1;
@@ -335,17 +530,13 @@ export default function ActivityPage() {
         canGoNext = !!currentStepAttempted;
         nextLabel = hasNextActivity ? 'Next Activity' : 'Finish';
       }
-    }
-    // Matching activity
-    else if (currentActivity === 'matching') {
+    } else if (currentActivity === 'matching') {
       const hasNextActivity = currentIndex < expandedActivities.length - 1;
       canGoNext = matchingCompleted;
       nextLabel = hasNextActivity ? 'Next Activity' : 'Finish';
-    }
-    // Other activities (warmup, vocabulary)
-    else {
+    } else {
       const hasNextActivity = currentIndex < expandedActivities.length - 1;
-      canGoNext = true; // Can always proceed from warmup/vocabulary
+      canGoNext = true;
       nextLabel = hasNextActivity ? 'Next Activity' : 'Finish';
     }
 
@@ -357,22 +548,17 @@ export default function ActivityPage() {
     };
   };
 
-  // FIXED: Sequential next navigation
   const handleNext = () => {
     const expandedActivities = getExpandedActivities(lesson);
     const currentIndex = expandedActivities.indexOf(currentActivity);
 
-    // Story activity - go page by page
     if (currentActivity === 'story') {
       const totalStoryPages = lesson?.content?.story?.sentences?.length || 0;
       if (storyPage < totalStoryPages - 1) {
         setStoryPage(prev => prev + 1);
         return;
       }
-      // At last page, go to next activity
-    }
-    // Fill words - go step by step
-    else if (currentActivity === 'fillwords') {
+    } else if (currentActivity === 'fillwords') {
       const totalSteps = lesson?.content?.practice?.activityB?.questions?.length || 0;
       const currentStepAttempted = wordConnectionCompletedSteps[wordConnectionStep];
       
@@ -385,10 +571,7 @@ export default function ActivityPage() {
         setWordConnectionStep(prev => prev + 1);
         return;
       }
-      // At last step, go to next activity
-    }
-    // Quiz - go step by step
-    else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
+    } else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching') {
       const totalSteps = lesson.content.quiz.actions.length;
       const currentStepAttempted = creativeQuizCompletedSteps[creativeQuizStep];
       
@@ -401,54 +584,66 @@ export default function ActivityPage() {
         setCreativeQuizStep(prev => prev + 1);
         return;
       }
-      // At last step, go to next activity
-    }
-    // Matching - must be completed
-    else if (currentActivity === 'matching') {
+    } else if (currentActivity === 'matching') {
       if (!matchingCompleted) {
         console.log('Cannot proceed - matching not completed');
         return;
       }
     }
 
-    // Navigate to next activity
     const hasNext = currentIndex < expandedActivities.length - 1;
     
     if (hasNext) {
       const nextActivity = expandedActivities[currentIndex + 1];
+      
+      // FIXED: Force save before navigation
+      saveScoresToLocalStorage(activityScores, {
+        matching: matchingCompleted,
+        fillwords: wordConnectionCompletedSteps,
+        quiz: creativeQuizCompletedSteps
+      });
+      
       router.push(`/lesson/${lessonId}/${nextActivity}`);
     } else {
       console.log('Navigating to complete page');
-      router.push(`/lesson/${lessonId}/complete`);
+      
+      // FIXED: Save scores immediately before navigation
+      const saved = saveScoresToLocalStorage(activityScores, {
+        matching: matchingCompleted,
+        fillwords: wordConnectionCompletedSteps,
+        quiz: creativeQuizCompletedSteps
+      });
+      
+      if (saved) {
+        // Small delay to ensure storage completes
+        setTimeout(() => {
+          router.push(`/lesson/${lessonId}/complete`);
+        }, 100);
+      } else {
+        // Navigate anyway even if save failed
+        router.push(`/lesson/${lessonId}/complete`);
+      }
     }
   };
 
-  // FIXED: Sequential previous navigation
   const handlePrevious = () => {
     const expandedActivities = getExpandedActivities(lesson);
     const currentIndex = expandedActivities.indexOf(currentActivity);
 
-    // Story activity - go back page by page
     if (currentActivity === 'story' && storyPage > 0) {
       setStoryPage(prev => prev - 1);
       return;
-    }
-    // Fill words - go back step by step
-    else if (currentActivity === 'fillwords' && wordConnectionStep > 0) {
+    } else if (currentActivity === 'fillwords' && wordConnectionStep > 0) {
       setWordConnectionStep(prev => prev - 1);
       return;
-    }
-    // Quiz - go back step by step
-    else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching' && creativeQuizStep > 0) {
+    } else if (currentActivity === 'quiz' && lesson?.content?.quiz?.type === 'character-matching' && creativeQuizStep > 0) {
       setCreativeQuizStep(prev => prev - 1);
       return;
     }
 
-    // Navigate to previous activity
     if (currentIndex > 0) {
       const prevActivity = expandedActivities[currentIndex - 1];
       
-      // Navigate to the last position of the previous activity
       if (prevActivity === 'story' && lesson?.content?.story?.sentences) {
         const totalStoryPages = lesson.content.story.sentences.length;
         setStoryPage(totalStoryPages - 1);
@@ -465,25 +660,16 @@ export default function ActivityPage() {
   };
 
   const handleHome = () => {
+    // FIXED: Save scores before leaving
+    saveScoresToLocalStorage(activityScores, {
+      matching: matchingCompleted,
+      fillwords: wordConnectionCompletedSteps,
+      quiz: creativeQuizCompletedSteps
+    });
+    
     router.push('/');
   };
 
-  // Auto-navigation function with complete page redirect
-  const navigateToNext = () => {
-    const expandedActivities = getExpandedActivities(lesson);
-    const currentIndex = expandedActivities.indexOf(currentActivity);
-    const hasNext = currentIndex < expandedActivities.length - 1;
-    
-    if (hasNext) {
-      const nextActivity = expandedActivities[currentIndex + 1];
-      router.push(`/lesson/${lessonId}/${nextActivity}`);
-    } else {
-      console.log('Auto-navigating to complete page');
-      router.push(`/lesson/${lessonId}/complete`);
-    }
-  };
-
-  // Activity display name with step info
   const getActivityDisplayName = () => {
     if (currentActivity === 'story' && lesson?.content?.story?.sentences) {
       const totalPages = lesson.content.story.sentences.length;
@@ -503,7 +689,6 @@ export default function ActivityPage() {
     return currentActivity.charAt(0).toUpperCase() + currentActivity.slice(1);
   };
 
-  // Progress calculation including matching activity
   const getActivityProgress = () => {
     if (!lesson) return undefined;
 
@@ -539,10 +724,9 @@ export default function ActivityPage() {
       return ((baseProgress + currentActivityProgress) * 100);
     }
     
-    return undefined; // Use default calculation
+    return undefined;
   };
 
-  // Get activity content
   const getActivityContent = (lesson, activity) => {
     switch (activity) {
       case 'matching':
@@ -554,7 +738,6 @@ export default function ActivityPage() {
     }
   };
 
-  // Error handling
   if (error) {
     return (
       <ErrorScreen 
@@ -598,7 +781,6 @@ export default function ActivityPage() {
     );
   }
 
-  // Render activity with proper completion handling
   const renderActivity = () => {
     try {
       switch (currentActivity) {
@@ -621,9 +803,29 @@ export default function ActivityPage() {
           return (
             <MatchingActivity 
               content={activityContent} 
-              onComplete={() => {
+              onComplete={(correctCount, totalCount) => {
                 console.log('Matching activity completed');
                 setMatchingCompleted(true);
+                
+                const score = calculateMatchingScore(correctCount, totalCount);
+                
+                // FIXED: Update state and save immediately
+                setActivityScores(prev => {
+                  const newScores = {
+                    ...prev,
+                    matching: score
+                  };
+                  
+                  // Save immediately
+                  saveScoresToLocalStorage(newScores, {
+                    matching: true,
+                    fillwords: wordConnectionCompletedSteps,
+                    quiz: creativeQuizCompletedSteps
+                  });
+                  
+                  console.log('Matching score saved:', score, '/', 20);
+                  return newScores;
+                });
               }}
             />
           );
@@ -636,16 +838,39 @@ export default function ActivityPage() {
               completedSteps={wordConnectionCompletedSteps}
               onStepComplete={(stepIndex, stepData) => {
                 console.log('FillWords step completed:', stepIndex, stepData);
-                setWordConnectionCompletedSteps(prev => ({
-                  ...prev,
-                  [stepIndex]: stepData
-                }));
                 
-                // Don't auto-advance - let user navigate manually
+                setWordConnectionCompletedSteps(prev => {
+                  const updatedSteps = {
+                    ...prev,
+                    [stepIndex]: stepData
+                  };
+                  
+                  const totalQuestions = lesson?.content?.practice?.activityB?.questions?.length || 0;
+                  const score = calculateFillWordsScore(updatedSteps, totalQuestions);
+                  
+                  // FIXED: Update and save immediately
+                  setActivityScores(prevScores => {
+                    const newScores = {
+                      ...prevScores,
+                      fillwords: score
+                    };
+                    
+                    // Save immediately
+                    saveScoresToLocalStorage(newScores, {
+                      matching: matchingCompleted,
+                      fillwords: updatedSteps,
+                      quiz: creativeQuizCompletedSteps
+                    });
+                    
+                    console.log('FillWords score saved:', score, '/', 40);
+                    return newScores;
+                  });
+                  
+                  return updatedSteps;
+                });
               }}
               onComplete={() => {
                 console.log('All fillwords completed');
-                // Don't auto-navigate - let user control navigation
               }}
             />
           );
@@ -658,16 +883,39 @@ export default function ActivityPage() {
               completedSteps={creativeQuizCompletedSteps}
               onStepComplete={(stepIndex, stepData) => {
                 console.log('Quiz step completed:', stepIndex, stepData);
-                setCreativeQuizCompletedSteps(prev => ({
-                  ...prev,
-                  [stepIndex]: stepData
-                }));
                 
-                // Don't auto-advance - let user navigate manually
+                setCreativeQuizCompletedSteps(prev => {
+                  const updatedSteps = {
+                    ...prev,
+                    [stepIndex]: stepData
+                  };
+                  
+                  const totalActions = lesson?.content?.quiz?.actions?.length || 0;
+                  const score = calculateQuizScore(updatedSteps, totalActions);
+                  
+                  // FIXED: Update and save immediately
+                  setActivityScores(prevScores => {
+                    const newScores = {
+                      ...prevScores,
+                      quiz: score
+                    };
+                    
+                    // Save immediately
+                    saveScoresToLocalStorage(newScores, {
+                      matching: matchingCompleted,
+                      fillwords: wordConnectionCompletedSteps,
+                      quiz: updatedSteps
+                    });
+                    
+                    console.log('Quiz score saved:', score, '/', 40);
+                    return newScores;
+                  });
+                  
+                  return updatedSteps;
+                });
               }}
               onComplete={() => {
                 console.log('All quiz completed');
-                // Don't auto-navigate - let user control navigation
               }}
             />
           );
@@ -696,6 +944,8 @@ export default function ActivityPage() {
   const navigationState = getNavigationState();
   const activityDisplayName = getActivityDisplayName();
   const customProgress = getActivityProgress();
+  const totalPages = getTotalPages(lesson);
+  const currentPage = getCurrentPage(lesson);
 
   return (
     <div className="h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-indigo-100 flex flex-col">
@@ -707,7 +957,8 @@ export default function ActivityPage() {
         lessonTitle={lesson.title}
         lessonId={lessonId}
         customProgress={customProgress}
-        activityDisplayName={activityDisplayName}
+        currentPage={currentPage}
+        totalPages={totalPages}
         onHome={handleHome}
       />
 
