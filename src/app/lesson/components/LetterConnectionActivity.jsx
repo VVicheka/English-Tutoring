@@ -558,7 +558,7 @@ export const LetterConnectionActivity = ({
           </h3>
           
           {/* Compact Progress */}
-          <div className="flex items-center justify-center space-x-3 mb-2">
+          {/* <div className="flex items-center justify-center space-x-3 mb-2">
             <div className="flex items-center space-x-1">
               <span className="text-xs font-medium text-gray-700">Word</span>
               <div className="px-2 py-1 bg-orange-100 rounded-full">
@@ -580,7 +580,7 @@ export const LetterConnectionActivity = ({
             <span className="text-xs font-semibold text-orange-600">
               {Math.round(((currentStep + 1) / totalQuestions) * 100)}%
             </span>
-          </div>
+          </div> */}
           
           {/* Completion status */}
           {isCompleted && (
@@ -656,7 +656,7 @@ export const LetterConnectionActivity = ({
             </div>
             
             {/* FIXED: Compact status indicator */}
-            <div className="flex justify-center items-center mt-2 flex-shrink-0">
+            {/* <div className="flex justify-center items-center mt-2 flex-shrink-0">
               <div className={`px-3 py-1 rounded-md text-xs font-medium ${
                 isCompleted 
                   ? stepData.isCorrect
@@ -675,7 +675,7 @@ export const LetterConnectionActivity = ({
                     : 'Drag to connect letters'
                 }
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -740,10 +740,10 @@ export const LetterConnectionActivity = ({
                 <p className="text-xl font-bold text-blue-600 mb-2 min-h-[28px] flex items-center justify-center">
                   {connectedLetters.join('') || dragPath.join('') || '---'}
                 </p>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">
+                <div className="flex items-center justify-end text-xs">
+                  {/* <span className="text-gray-500">
                     Target: <span className="font-bold text-gray-700">{currentQuestion.answer.toUpperCase()}</span>
-                  </span>
+                  </span> */}
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     connectedLetters.length > 0 || dragPath.length > 0
                       ? 'bg-blue-100 text-blue-700'

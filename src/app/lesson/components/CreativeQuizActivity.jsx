@@ -174,9 +174,9 @@ export const CreativeQuizActivity = ({
         
         {/* Progress */}
         <div className="flex items-center justify-center space-x-4">
-          <span className="text-sm text-gray-600">
+          {/* <span className="text-sm text-gray-600">
             Action {currentStep + 1} of {content.actions.length}
-          </span>
+          </span> */}
           
           {/* NEW: Completion indicator */}
           {allCompleted && (

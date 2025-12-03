@@ -1,4 +1,4 @@
-// Container-fitted MiniStoryActivity with image integration
+// Container-fitted MiniStoryActivity with larger image
 import { useState, useEffect } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
 
@@ -84,49 +84,47 @@ export const MiniStoryActivity = ({ content, storyPage = 0, onStoryPageChange })
         <h2 className="text-center text-lg font-bold text-purple-800">
           {content.title}
         </h2>
-        <div className="text-center text-sm text-gray-500 mt-1">
+        {/* <div className="text-center text-sm text-gray-500 mt-1">
           Page {storyPage + 1} of {totalPages}
-        </div>
+        </div> */}
       </div>
       
       {/* Main Content - Uses available space */}
-      <div className="flex-1 flex flex-col p-3 min-h-0">
+      <div className="flex-1 flex flex-col p-4 min-h-0">
         
-        {/* Image Space - Larger image size */}
-        <div className="w-full max-w-md mx-auto h-40 md:h-48 lg:h-56 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center overflow-hidden mb-4 flex-shrink-0">
+        {/* Image Space - Much larger image */}
+        <div className="w-full max-w-2xl mx-auto flex-1 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden mb-4 min-h-0">
           {!imageError[storyPage] ? (
             <img 
               src={getImagePath(storyPage)}
               alt={`Story illustration for page ${storyPage + 1}`}
               className="w-full h-full object-contain rounded-lg"
               onError={() => handleImageError(storyPage)}
-              onLoad={() => console.log(`Image loaded: ${getImagePath(storyPage)}`)}
             />
           ) : (
             <div className="text-center text-gray-400">
-              <div className="text-3xl mb-1">📖</div>
-              <p className="text-xs">Story image {storyPage + 1}</p>
+              <div className="text-5xl mb-2">📖</div>
             </div>
           )}
         </div>
         
-        {/* Sentence Text - Takes remaining space */}
-        <div className="flex-1 flex items-center justify-center min-h-0">
+        {/* Sentence Text with Click to Hear - Compact */}
+        <div className="flex-shrink-0">
           <div 
-            className="text-center cursor-pointer hover:bg-blue-50 rounded-lg p-3 transition-all duration-200 w-full"
+            className="text-center cursor-pointer hover:bg-blue-50 rounded-lg p-4 transition-all duration-200 w-full"
             onClick={handleSentenceClick}
           >
-            <p className={`text-base md:text-lg text-gray-800 leading-relaxed font-medium ${
+            <p className={`text-lg md:text-xl text-gray-800 leading-relaxed font-medium mb-2 ${
               isSpeaking ? 'text-blue-600 animate-pulse' : ''
             }`}>
               {typeof currentSentence === 'string' ? currentSentence : (currentSentence.text || currentSentence)}
             </p>
             
-            <div className="flex items-center justify-center space-x-2 mt-3">
-              <span className={`text-xl ${isSpeaking ? 'animate-bounce' : ''}`}>
+            <div className="flex items-center justify-center space-x-2">
+              <span className={`text-base ${isSpeaking ? 'animate-bounce' : ''}`}>
                 {isSpeaking ? '🔊' : '🔈'}
               </span>
-              <span className="text-sm text-gray-500">
+              <span className="text-xs text-gray-500">
                 {isSpeaking ? 'Reading...' : 'Click to hear'}
               </span>
             </div>
@@ -152,13 +150,6 @@ export const MiniStoryActivity = ({ content, storyPage = 0, onStoryPageChange })
             />
           ))}
         </div>
-        
-        {/* Debug info - only in development */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="text-center text-xs text-gray-400 mt-1">
-            <p>Image: {getImagePath(storyPage)} | ID: {content.id || 'undefined'}</p>
-          </div>
-        )}
       </div>
     </div>
   );
