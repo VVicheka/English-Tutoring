@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { supabase } from './lib/supabase';
+import { getHighestUnlockedLesson, isLessonUnlocked, isQuizUnlocked, getLockMessage } from './lib/lessonUtils';
 
 // Static SVG positions for the roadmap
 const lessonPositions = {
@@ -84,17 +85,17 @@ const NavigationButtons = ({ user, userProfile, router }) => {
           {userProfile?.name || 'Profile'}
         </span>
       </div>
-      
-      {/* Dashboard Button Group */}
-      {/* <div className="flex flex-col items-center gap-1">
+
+      {/* History Button Group */}
+      <div className="flex flex-col items-center gap-1">
         <button 
-          className="w-14 h-14 bg-green-300 hover:bg-green-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
-          onClick={() => router.push('/dashboard')}
+          className="w-14 h-14 bg-orange-300 hover:bg-orange-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
+          onClick={() => router.push('/history')}
         >
-          <span className="text-lg">📊</span>
+          <span className="text-lg">📚</span>
         </button>
-        <span className="text-sm font-medium text-gray-700">Dashboard</span>
-      </div> */}
+        <span className="text-sm font-medium text-gray-700">History</span>
+      </div>
       
       {/* Details Button Group */}
       <div className="flex flex-col items-center gap-1">
@@ -212,6 +213,18 @@ const SVGRoadmap = ({ curriculum, onClick, isAuthenticated, furthestUnlockedPosi
                       </text>
                     ))}
                   </g>
+                )}
+
+                {/* Lock icon for locked lessons */}
+                {!item.unlocked && !item.completed && item.type !== "start" && (
+                  <text
+                    x={x}
+                    y={y - 28}
+                    fontSize="16"
+                    textAnchor="middle"
+                  >
+                    🔒
+                  </text>
                 )}
                 
                 {/* Main lesson circle or start button rectangle */}
@@ -364,24 +377,12 @@ export default function HomePage() {
     }
   };
 
-  // Get highest completed lesson number
-  const getHighestCompletedLesson = (userProgress) => {
-    if (!userProgress.lessons || userProgress.lessons.length === 0) {
-      return 0; // No lessons completed
-    }
-    
-    const completedLessons = userProgress.lessons
-      .filter(lp => lp.is_completed)
-      .map(lp => lp.lesson_id)
-      .filter(id => typeof id === 'number'); // Only numeric lesson IDs
-    
-    return completedLessons.length > 0 ? Math.max(...completedLessons) : 0;
-  };
-
-  // Build curriculum data from database + hardcoded quizzes
+  // Build curriculum data from database + hardcoded quizzes with score-based unlocking
   const buildCurriculum = (lessons, userProgress) => {
     const curriculumItems = [];
-    const highestCompletedLesson = getHighestCompletedLesson(userProgress);
+    const highestUnlockedLesson = getHighestUnlockedLesson(userProgress.lessons);
+
+    console.log('🔓 Building curriculum with highest unlocked:', highestUnlockedLesson);
 
     // Add "Get Started" button
     curriculumItems.push({
@@ -394,52 +395,84 @@ export default function HomePage() {
       unlocked: true
     });
 
-    // Add lessons from database
+    // Add lessons from database with score-based unlocking
     lessons.forEach(lesson => {
       const lessonProgress = userProgress.lessons.find(lp => lp.lesson_id === lesson.id);
+      const isCompleted = lessonProgress?.is_completed || false;
+      const score = lessonProgress?.best_score || 0;
+      
+      // Lesson is unlocked if:
+      // 1. It's lesson 1, OR
+      // 2. Previous lesson is completed with score >= 50
+      const isUnlocked = isLessonUnlocked(lesson.id, userProgress.lessons);
+      
+      // Check if previous lesson exists but doesn't meet score requirement
+      const needsMinScore = lesson.id > 1 && !isUnlocked && 
+        userProgress.lessons.some(lp => lp.lesson_id === lesson.id - 1 && 
+          lp.is_completed && (lp.best_score || 0) < 50);
+      
+      console.log(`Lesson ${lesson.id}: unlocked=${isUnlocked}, completed=${isCompleted}, score=${score}`);
       
       curriculumItems.push({
         id: lesson.id,
         type: "lesson",
         title: `Lesson ${lesson.id}`,
         focus: lesson.title,
-        completed: lessonProgress?.is_completed || false,
+        completed: isCompleted,
         stars: lessonProgress?.best_stars || 0,
-        score: lessonProgress?.best_score || 0,
-        unlocked: lesson.id === 1 || lesson.id <= highestCompletedLesson + 1
+        score: score,
+        unlocked: isUnlocked,
+        needsMinScore: needsMinScore
       });
     });
 
-    // Add hardcoded quizzes
+    // Add hardcoded quizzes with score-based unlocking
     quizData.forEach(quiz => {
+      const lastLessonInUnit = quiz.unlockAfterLesson;
+      const isUnlocked = isQuizUnlocked(lastLessonInUnit, userProgress.lessons);
+      
+      // Check if last lesson is completed but doesn't meet score requirement
+      const lastLessonProgress = userProgress.lessons.find(lp => lp.lesson_id === lastLessonInUnit);
+      const needsMinScore = lastLessonProgress?.is_completed && 
+        (lastLessonProgress?.best_score || 0) < 50;
+      
+      console.log(`Quiz ${quiz.id}: unlocked=${isUnlocked}, lastLesson=${lastLessonInUnit}`);
+      
       curriculumItems.push({
         id: quiz.id,
         type: quiz.type,
         title: quiz.title,
         focus: quiz.focus,
-        completed: false, // You can later check personalized_quiz table for completion
+        completed: false, // Check personalized_quiz table for completion
         stars: 0,
-        unlocked: highestCompletedLesson >= quiz.unlockAfterLesson
+        unlocked: isUnlocked,
+        needsMinScore: needsMinScore
       });
     });
 
     return curriculumItems;
   };
 
-  // Calculate scroll position for furthest unlocked lesson
+  // Calculate scroll position for furthest unlocked lesson (latest one, not first incomplete)
   const calculateScrollPosition = (curriculum) => {
-    const furthestUnlocked = curriculum
-      .filter(item => (item.type === "lesson" || item.type === "quiz") && item.unlocked && !item.completed)
+    // Get all unlocked lessons (including completed ones)
+    const unlockedLessons = curriculum
+      .filter(item => item.type === "lesson" && item.unlocked)
       .sort((a, b) => {
-        // Handle mixed ID types (numbers and strings)
-        const aId = typeof a.id === 'number' ? a.id : 999;
-        const bId = typeof b.id === 'number' ? b.id : 999;
-        return aId - bId;
-      })[0];
+        // Sort by lesson ID in descending order to get the latest
+        const aId = typeof a.id === 'number' ? a.id : 0;
+        const bId = typeof b.id === 'number' ? b.id : 0;
+        return bId - aId; // Descending order
+      });
 
-    if (furthestUnlocked && lessonPositions[furthestUnlocked.id]) {
-      const position = lessonPositions[furthestUnlocked.id];
+    // Get the latest unlocked lesson (highest lesson number)
+    const latestUnlocked = unlockedLessons[0];
+
+    if (latestUnlocked && lessonPositions[latestUnlocked.id]) {
+      const position = lessonPositions[latestUnlocked.id];
       setFurthestUnlockedPosition(position);
+      
+      console.log('🎯 Scrolling to latest unlocked lesson:', latestUnlocked.id, latestUnlocked.title);
       
       // Calculate scroll position based on SVG coordinates
       const svgHeight = 1175;
@@ -490,7 +523,7 @@ export default function HomePage() {
         // Always fetch lessons (for display purposes)
         const lessons = await fetchLessons();
         
-        // Build curriculum based on user progress
+        // Build curriculum based on user progress with score-based unlocking
         const curriculumData = buildCurriculum(lessons, progress);
         setCurriculum(curriculumData);
 
@@ -572,7 +605,12 @@ export default function HomePage() {
             if (clickedItem.unlocked || clickedItem.completed) {
               router.push(`/lesson/${clickedItem.id}`);
             } else {
-              alert('Complete previous lessons to unlock this one!');
+              // Show specific message based on why it's locked
+              if (clickedItem.needsMinScore) {
+                alert('⚠️ Complete the previous lesson with a score of at least 50 to unlock this lesson!\n\nTry again to improve your score! 💪');
+              } else {
+                alert('🔒 Complete previous lessons to unlock this one!');
+              }
             }
             return;
           }
@@ -581,7 +619,12 @@ export default function HomePage() {
             if (clickedItem.unlocked || clickedItem.completed) {
               router.push(`/quiz/${clickedItem.id}`);
             } else {
-              alert('Complete more lessons to unlock this quiz!');
+              // Show specific message for quizzes
+              if (clickedItem.needsMinScore) {
+                alert('⚠️ Complete all lessons in this unit with a score of at least 50 to unlock this quiz!\n\nKeep practicing! 📚');
+              } else {
+                alert('🔒 Complete more lessons to unlock this quiz!');
+              }
             }
             return;
           }
