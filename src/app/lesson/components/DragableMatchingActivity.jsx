@@ -1,10 +1,42 @@
+// DragableMatchingActivity - Cohesive Design System
 import { useState, useEffect, useMemo } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
+
+// Design system constants
+const DESIGN = {
+  colors: {
+    bg: 'from-violet-100 via-fuchsia-100 to-pink-100',
+    header: 'from-violet-400 to-fuchsia-400',
+    card: 'bg-white',
+    dropzone: {
+      correct: 'bg-green-100 border-green-400',
+      wrong: 'bg-red-100 border-red-400',
+      filled: 'bg-yellow-100 border-yellow-400',
+      empty: 'bg-gray-50 border-gray-300',
+    },
+    word: {
+      correct: 'bg-green-400 hover:bg-green-500',
+      wrong: 'bg-red-400 hover:bg-red-500',
+      used: 'bg-gray-300',
+      available: 'bg-purple-400 hover:bg-purple-500',
+    }
+  },
+  spacing: {
+    container: 'p-4 md:p-6',
+    card: 'p-6 md:p-8',
+    compact: 'p-3 md:p-4',
+  },
+  shadows: {
+    card: 'shadow-lg hover:shadow-xl',
+    button: 'shadow-md hover:shadow-lg',
+  },
+  transitions: 'transition-all duration-300',
+};
 
 export const DragableMatchingActivity = ({ content, onComplete }) => {
   const { speak } = useTextToSpeech();
   
-  // Embedded sound generation using Web Audio API
+  // Sound effects
   const createAudioContext = () => {
     return new (window.AudioContext || window.webkitAudioContext)();
   };
@@ -12,7 +44,6 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
   const playCorrectSound = () => {
     try {
       const audioContext = createAudioContext();
-      
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
       
@@ -21,14 +52,12 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
       
       oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
       oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
-      
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
       
       oscillator.type = 'sine';
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.3);
-      
     } catch (error) {
       console.log('Web Audio not supported');
     }
@@ -37,7 +66,6 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
   const playWrongSound = () => {
     try {
       const audioContext = createAudioContext();
-      
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
       
@@ -46,27 +74,25 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
       
       oscillator.frequency.setValueAtTime(150, audioContext.currentTime);
       oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 0.1);
-      
       gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
       
       oscillator.type = 'sawtooth';
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.2);
-      
     } catch (error) {
       console.log('Web Audio not supported');
     }
   };
   
-  // Create a unique storage key for this specific activity
+  // Create unique storage key
   const storageKey = useMemo(() => {
     if (!content?.activityA?.pairs) return 'default-activity';
     const wordsString = content.activityA.pairs.map(p => p.word).sort().join('-');
     return `matching-activity-${wordsString}`;
   }, [content]);
 
-  // Fisher-Yates shuffle algorithm for consistent shuffling
+  // Shuffle algorithm
   const shuffleArray = (array, seed = 42) => {
     const shuffled = [...array];
     let random = seed;
@@ -79,7 +105,7 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
     return shuffled;
   };
 
-  // Create shuffled words that stay consistent for this activity
+  // Create shuffled words
   const shuffledWords = useMemo(() => {
     if (!content?.activityA?.pairs) return [];
     
@@ -92,7 +118,7 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
     return shuffleArray(content.activityA.pairs, seed);
   }, [content]);
 
-  // Initialize state
+  // State
   const [draggedWord, setDraggedWord] = useState(null);
   const [dropZones, setDropZones] = useState({});
   const [correctMatches, setCorrectMatches] = useState(new Set());
@@ -101,13 +127,12 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [completionCalled, setCompletionCalled] = useState(false);
 
-  // Load saved progress on mount
+  // Load saved progress
   useEffect(() => {
     if (typeof window !== 'undefined' && storageKey !== 'default-activity') {
       try {
         const saved = window.matchingActivityProgress?.[storageKey];
         if (saved && typeof saved === 'object') {
-          console.log('Loading saved progress:', saved);
           setDropZones(saved.dropZones || {});
           
           if (Array.isArray(saved.correctMatches)) {
@@ -133,7 +158,7 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
     setHasLoaded(true);
   }, [storageKey]);
 
-  // Save progress and handle completion
+  // Save progress
   useEffect(() => {
     if (!hasLoaded || !content?.activityA?.pairs) return;
     
@@ -170,15 +195,10 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
         }
       }
 
-      // FIXED: Call onComplete with correct count and total count
       if (allWordsAttempted && !completionCalled && onComplete) {
-        console.log('All words attempted, calling onComplete with counts');
-        console.log('Correct matches:', correctMatches.size, 'Total pairs:', totalWords);
         setCompletionCalled(true);
         
         setTimeout(() => {
-          console.log('Calling onComplete(correctMatches, totalWords)');
-          // Pass the counts to parent for score calculation
           onComplete(correctMatches.size, totalWords);
         }, allCorrect ? 2000 : 1000);
       }
@@ -188,6 +208,7 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
     }
   }, [dropZones, correctMatches, wrongMatches, storageKey, content, isCompleted, hasLoaded, speak, onComplete, completionCalled]);
 
+  // Drag handlers
   const handleDragStart = (e, word) => {
     if (isCompleted && correctMatches.size === content.activityA.pairs.length) {
       e.preventDefault();
@@ -255,12 +276,18 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
     }
   };
 
+  // Loading state
   if (!hasLoaded) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading activity...</p>
+          <div className="relative w-16 h-16 mx-auto mb-4">
+            <div className="absolute inset-0 rounded-full border-4 border-purple-200 animate-ping"></div>
+            <div className="relative rounded-full w-16 h-16 border-4 border-purple-500 border-t-transparent animate-spin flex items-center justify-center">
+              <span className="text-2xl">🔗</span>
+            </div>
+          </div>
+          <p className="text-lg font-semibold text-gray-700">Loading matching activity...</p>
         </div>
       </div>
     );
@@ -270,156 +297,153 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-600">Error: No activity content found</p>
+          <div className="text-6xl mb-4">😕</div>
+          <p className="text-lg font-bold text-red-600">No activity content found</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="text-center mb-6">
-        <h3 className="text-2xl font-bold text-purple-800 mb-2">{content.activityA.title}</h3>
-        <p className="text-purple-600 text-lg italic">{content.activityA.instruction}</p>
-        
-        {isCompleted && (
-          <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded-lg">
-            <p className="text-green-700 font-semibold flex items-center justify-center">
-              ✅ Perfect! All matches correct!
-            </p>
-          </div>
-        )}
-        
-        {completionCalled && !isCompleted && (
-          <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
-            <p className="text-blue-700 font-semibold flex items-center justify-center">
-              📝 Good try! You've attempted all matches.
-            </p>
-          </div>
-        )}
+    <div className={`h-full flex flex-col bg-gradient-to-br ${DESIGN.colors.bg} ${DESIGN.spacing.container} rounded-2xl overflow-hidden`}>
+      {/* Header - Ultra Compact */}
+      <div className={`flex-shrink-0 bg-gradient-to-r ${DESIGN.colors.header} rounded-xl px-3 py-1.5 mb-2 ${DESIGN.shadows.card} border border-white`}>
+        <div className="flex items-center justify-center space-x-2">
+          <span className="text-xl">🔗</span>
+          <h3 className="text-base md:text-lg font-black text-white">{content.activityA.title}</h3>
+        </div>
       </div>
 
-      <div className="flex-1 flex flex-col">
-        {/* Images with Drop Zones */}
-        <div className="flex-1 bg-blue-50 rounded-lg p-6 mb-6">
-          <div className="grid grid-cols-4 gap-6 h-full">
-            {content.activityA.pairs.map((pair) => (
-              <div key={pair.emoji} className="flex flex-col items-center">
-                <div 
-                  className="w-24 h-24 bg-white rounded-lg shadow-md flex items-center justify-center mb-4 cursor-pointer hover:scale-105 transition-transform"
-                  onClick={() => handleImageClick(pair.emoji)}
-                >
-                  <span className="text-4xl">{pair.emoji}</span>
-                </div>
+      {/* Main Content - More space for content */}
+      <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-hidden">
+        {/* Images with Drop Zones - Takes 55% of available space */}
+        <div className={`flex-[0.55] ${DESIGN.colors.card} rounded-2xl p-3 ${DESIGN.shadows.card} overflow-hidden`}>
+          <div className="h-full overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {content.activityA.pairs.map((pair) => (
+                <div key={pair.emoji} className="flex flex-col items-center">
+                  {/* Emoji Card - Responsive size */}
+                  <div 
+                    onClick={() => handleImageClick(pair.emoji)}
+                    className={`w-full aspect-square max-h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl ${DESIGN.shadows.button} flex items-center justify-center mb-2 cursor-pointer ${DESIGN.transitions} transform hover:scale-105 border-2 border-white`}
+                  >
+                    <span className="text-3xl md:text-4xl">{pair.emoji}</span>
+                  </div>
 
-                <div
-                  className={`w-32 h-12 border-2 border-dashed rounded-lg flex items-center justify-center text-lg font-semibold transition-all ${
-                    correctMatches.has(pair.emoji) 
-                      ? 'bg-green-100 border-green-400 text-green-700' 
-                      : wrongMatches.has(pair.emoji)
-                        ? 'bg-red-100 border-red-400 text-red-700'
-                        : dropZones[pair.emoji]
-                          ? 'bg-yellow-100 border-yellow-400 text-yellow-700'
-                          : 'bg-gray-100 border-gray-300 text-gray-500'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, pair.emoji)}
-                >
-                  <span className="text-sm text-center">
-                    {dropZones[pair.emoji] || 'Drop here'}
-                  </span>
-                  {correctMatches.has(pair.emoji) && <span className="ml-2">✓</span>}
-                  {wrongMatches.has(pair.emoji) && <span className="ml-2">❌</span>}
+                  {/* Drop Zone - Compact */}
+                  <div
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, pair.emoji)}
+                    className={`w-full h-9 border-2 border-dashed rounded-lg flex items-center justify-center text-xs font-bold ${DESIGN.transitions} ${
+                      correctMatches.has(pair.emoji) 
+                        ? `${DESIGN.colors.dropzone.correct} text-green-700 ${DESIGN.shadows.button}` 
+                        : wrongMatches.has(pair.emoji)
+                          ? `${DESIGN.colors.dropzone.wrong} text-red-700 ${DESIGN.shadows.button}`
+                          : dropZones[pair.emoji]
+                            ? `${DESIGN.colors.dropzone.filled} text-yellow-700`
+                            : `${DESIGN.colors.dropzone.empty} text-gray-400`
+                    }`}
+                  >
+                    <span className="text-center px-1 truncate text-xs">
+                      {dropZones[pair.emoji] || 'Drop'}
+                    </span>
+                    {correctMatches.has(pair.emoji) && <span className="ml-1">✓</span>}
+                    {wrongMatches.has(pair.emoji) && <span className="ml-1">✗</span>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Draggable Words */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h4 className="text-lg font-semibold text-center mb-4 text-gray-700">
-            {isCompleted ? "Words matched perfectly:" : completionCalled ? "All words attempted:" : "Drag the words to match:"}
+        {/* Draggable Words - Takes 35% */}
+        <div className={`flex-[0.35] ${DESIGN.colors.card} rounded-2xl p-3 ${DESIGN.shadows.card} overflow-hidden flex flex-col`}>
+          <h4 className="text-sm font-black text-center mb-2 text-gray-800 flex-shrink-0">
+            {isCompleted ? "🎉 Perfect!" : completionCalled ? "💪 Done!" : "👆 Drag to match"}
           </h4>
-          <div className="flex justify-center space-x-4 flex-wrap gap-2">
-            {shuffledWords.map((pair, index) => {
-              const isUsed = Object.values(dropZones).includes(pair.word);
-              const isCorrectlyPlaced = correctMatches.has(pair.emoji) && dropZones[pair.emoji] === pair.word;
-              const isWronglyPlaced = wrongMatches.has(pair.emoji) && dropZones[pair.emoji] === pair.word;
-              
-              return (
-                <div
-                  key={`shuffled-${pair.word}-${index}`}
-                  draggable={!isUsed || isWronglyPlaced}
-                  onDragStart={(e) => handleDragStart(e, pair.word)}
-                  onClick={() => handleWordClick(pair.word)}
-                  className={`px-6 py-3 rounded-lg font-semibold text-lg cursor-pointer transition-all ${
-                    isCorrectlyPlaced
-                      ? 'bg-green-200 text-green-800 cursor-default'
-                      : isWronglyPlaced
-                        ? 'bg-red-200 text-red-800 hover:bg-red-300 shadow-md'
-                        : isUsed 
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-50' 
-                          : 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 hover:scale-105 shadow-md'
-                  }`}
-                >
-                  {pair.word}
-                  <span className="ml-2 text-sm">🔈</span>
-                  {isCorrectlyPlaced && <span className="ml-2">✅</span>}
-                  {isWronglyPlaced && <span className="ml-2">🔄</span>}
-                </div>
-              );
-            })}
+          <div className="flex-1 overflow-y-auto">
+            <div className="flex justify-center flex-wrap gap-2">
+              {shuffledWords.map((pair, index) => {
+                const isUsed = Object.values(dropZones).includes(pair.word);
+                const isCorrectlyPlaced = correctMatches.has(pair.emoji) && dropZones[pair.emoji] === pair.word;
+                const isWronglyPlaced = wrongMatches.has(pair.emoji) && dropZones[pair.emoji] === pair.word;
+                
+                return (
+                  <div
+                    key={`shuffled-${pair.word}-${index}`}
+                    draggable={!isUsed || isWronglyPlaced}
+                    onDragStart={(e) => handleDragStart(e, pair.word)}
+                    onClick={() => handleWordClick(pair.word)}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-sm cursor-pointer ${DESIGN.transitions} transform ${
+                      isCorrectlyPlaced
+                        ? `${DESIGN.colors.word.correct} text-white cursor-default ${DESIGN.shadows.button}`
+                        : isWronglyPlaced
+                          ? `${DESIGN.colors.word.wrong} text-white hover:scale-105 ${DESIGN.shadows.button}`
+                          : isUsed 
+                            ? `${DESIGN.colors.word.used} text-gray-500 cursor-not-allowed opacity-50` 
+                            : `${DESIGN.colors.word.available} text-white hover:scale-105 ${DESIGN.shadows.button}`
+                    }`}
+                  >
+                    <span>{pair.word}</span>
+                    <span className="ml-1 text-xs">🔈</span>
+                    {isCorrectlyPlaced && <span className="ml-1">✅</span>}
+                    {isWronglyPlaced && <span className="ml-1">🔄</span>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* Progress Indicator */}
-        <div className="text-center mt-4">
-          <div className="flex items-center justify-center space-x-4">
-            <p className="text-lg text-gray-600">
-              Correct: {correctMatches.size} / {content.activityA.pairs.length}
-            </p>
-            <p className="text-lg text-gray-600">
-              Attempted: {Object.keys(dropZones).length} / {content.activityA.pairs.length}
-            </p>
-            
-            <div className="w-32 bg-gray-200 rounded-full h-3">
-              <div 
-                className="bg-blue-500 h-3 rounded-full transition-all duration-500"
-                style={{ 
-                  width: `${(Object.keys(dropZones).length / content.activityA.pairs.length) * 100}%` 
-                }}
-              ></div>
+        {/* Progress Indicator - Takes 10% */}
+        <div className="flex-[0.1] flex items-center justify-center flex-shrink-0">
+          <div className="flex items-center space-x-3">
+            {/* Correct Score */}
+            <div className="flex items-center space-x-1">
+              <span className="text-base">✓</span>
+              <span className="text-sm font-black text-green-600">
+                {correctMatches.size}/{content.activityA.pairs.length}
+              </span>
             </div>
             
-            <div className="w-32 bg-gray-200 rounded-full h-3">
+            {/* Progress Bar */}
+            <div className="w-24 bg-gray-200 rounded-full h-2 overflow-hidden border border-gray-300">
               <div 
-                className="bg-green-500 h-3 rounded-full transition-all duration-500"
+                className="bg-gradient-to-r from-green-400 to-green-600 h-full rounded-full ${DESIGN.transitions}"
                 style={{ 
                   width: `${(correctMatches.size / content.activityA.pairs.length) * 100}%` 
                 }}
               ></div>
             </div>
             
+            {/* Attempted Score */}
+            <div className="flex items-center space-x-1">
+              <span className="text-base">📝</span>
+              <span className="text-sm font-black text-blue-600">
+                {Object.keys(dropZones).length}/{content.activityA.pairs.length}
+              </span>
+            </div>
+            
             {correctMatches.size === content.activityA.pairs.length && (
-              <span className="text-green-600 font-bold">🎉 Perfect!</span>
+              <span className="text-lg animate-bounce">🎉</span>
             )}
           </div>
-          
-          {!completionCalled && Object.keys(dropZones).length > 0 && (
-            <p className="text-sm text-gray-500 mt-2">
-              Keep going! You're doing great! 🌟
-            </p>
-          )}
-          
-          {completionCalled && !isCompleted && (
-            <p className="text-sm text-blue-600 mt-2">
-              Good effort! You can continue to the next activity or try to improve your matches! 🔄
-            </p>
-          )}
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes bounce-slow {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-10px);
+          }
+        }
+        .animate-bounce-slow {
+          animation: bounce-slow 2s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 };

@@ -143,7 +143,14 @@ export const lessonData = {
           { name: "Ellie the Elephant", emoji: "🐘" }, { name: "Benny the Bear", emoji: "🐻" },
           { name: "Lila the Lion", emoji: "🦁" }, { name: "Milo the Monkey", emoji: "🐒" }, { name: "Tina the Tiger", emoji: "🐯" }
         ],
-        actions: ["Slept in the bed", "Wrote with a pen", "Pecked like a hen", "Got caught in a net", "Sat near the red bed"]
+        actions: ["Slept in the bed", "Wrote with a pen", "Pecked like a hen", "Got caught in a net", "Sat near the red bed"],
+        answers: {
+          "Ellie the Elephant": "Got caught in a net",
+          "Benny the Bear": "Wrote with a pen", 
+          "Lila the Lion": "Pecked like a hen",
+          "Milo the Monkey": "Slept in the bed",
+          "Tina the Tiger": "Sat near the red bed"
+        }
       }
     }
   },
@@ -212,7 +219,14 @@ export const lessonData = {
           { name: "Ellie the Elephant", emoji: "🐘" }, { name: "Benny the Bear", emoji: "🐻" },
           { name: "Lila the Lion", emoji: "🦁" }, { name: "Milo the Monkey", emoji: "🐒" }, { name: "Tina the Tiger", emoji: "🐯" }
         ],
-        actions: ["Dropped the fig", "Sat in a bin", "Wore a lid on the head", "Ran after the pig", "Found a fig on the lid"]
+        actions: ["Dropped the fig", "Sat in a bin", "Wore a lid on the head", "Ran after the pig", "Found a fig on the lid"],
+        answers: {
+          "Ellie the Elephant": "Found a fig on the lid",
+          "Benny the Bear": "Wore a lid on the head", 
+          "Lila the Lion": "Sat in a bin",
+          "Milo the Monkey": "Ran after the pig",
+          "Tina the Tiger": "Dropped the fig"
+        }
       }
     }
   },
@@ -281,7 +295,14 @@ export const lessonData = {
           { name: "Ellie the Elephant", emoji: "🐘" }, { name: "Benny the Bear", emoji: "🐻" },
           { name: "Lila the Lion", emoji: "🦁" }, { name: "Milo the Monkey", emoji: "🐒" }, { name: "Tina the Tiger", emoji: "🐯" }
         ],
-        actions: ["Napped on the bed", "Wrote with the pen", "Played with the cat", "Ate a fig", "Drew the fig-cat"]
+        actions: ["Napped on the bed", "Wrote with the pen", "Played with the cat", "Ate a fig", "Drew the fig-cat"],
+        answers: {
+          "Ellie the Elephant": "Napped on the bed",
+          "Benny the Bear": "Ate a fig", 
+          "Lila the Lion": "Played with the cat",
+          "Milo the Monkey": "Wrote with the pen",
+          "Tina the Tiger": "Drew the fig-cat"
+        }
       },
       wrapup: {
         title: "Wrap-Up",

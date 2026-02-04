@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getLessonById } from '../../../data/lessons';
 import { supabase } from '../../../lib/supabase';
+import { isLessonUnlocked } from '../../../lib/lessonUtils';
 
 export default function LessonCompletePage() {
   const router = useRouter();
@@ -13,6 +14,11 @@ export default function LessonCompletePage() {
   const [scores, setScores] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [userProgress, setUserProgress] = useState([]);
+  const [canUnlockNext, setCanUnlockNext] = useState(false);
+  
+  // ✅ Use ref to prevent double save
+  const hasSavedRef = useRef(false);
 
   // Calculate stars based on score (0-3 stars max)
   const calculateStars = (totalScore) => {
@@ -22,8 +28,44 @@ export default function LessonCompletePage() {
     return 0;
   };
 
-  // Save score to Supabase database
+  // Fetch user progress to check unlock status
+  const fetchUserProgress = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_lesson')
+        .select('*')
+        .eq('user_id', userId)
+        .order('lesson_id', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching user progress:', error);
+        return;
+      }
+
+      setUserProgress(data || []);
+
+      // Check if next lesson can be unlocked
+      const nextLessonId = parseInt(lessonId) + 1;
+      if (nextLessonId <= 12) {
+        const nextLessonUnlocked = isLessonUnlocked(nextLessonId, data || []);
+        setCanUnlockNext(nextLessonUnlocked);
+        console.log(`🔓 Next lesson (${nextLessonId}) unlocked:`, nextLessonUnlocked);
+      }
+    } catch (err) {
+      console.error('Error in fetchUserProgress:', err);
+    }
+  };
+
+  // Save score to Supabase database with breakdown
   const saveScoreToDatabase = async (lessonId, scoreData) => {
+    // ✅ Check if already saved
+    if (hasSavedRef.current) {
+      console.log('⏭️ Already saved, skipping duplicate save');
+      return;
+    }
+
+    hasSavedRef.current = true;
+
     setSaving(true);
     console.log('💾 Saving score to database...', scoreData);
 
@@ -45,15 +87,50 @@ export default function LessonCompletePage() {
       console.log('✅ User found:', user.id);
 
       const totalScore = scoreData.totalScore;
+      const matchingScore = scoreData.scores?.matching || 0;
+      const fillwordsScore = scoreData.scores?.fillwords || 0;
+      const quizScore = scoreData.scores?.quiz || 0;
       const stars = calculateStars(totalScore);
 
       console.log('📊 Score data:', {
         lessonId: parseInt(lessonId),
         totalScore,
+        matchingScore,
+        fillwordsScore,
+        quizScore,
         stars: `${stars}/3`,
         userId: user.id
       });
 
+      // 🆕 STEP 1: SAVE TO lesson_attempts (ALL attempts history)
+      try {
+        const { data: attemptData, error: attemptError } = await supabase
+          .from('lesson_attempts')
+          .insert({
+            user_id: user.id,
+            lesson_id: parseInt(lessonId),
+            matching_score: matchingScore,
+            fillwords_score: fillwordsScore,
+            quiz_score: quizScore,
+            total_score: totalScore,
+            stars: stars,
+            completed_at: new Date().toISOString()
+            // attempt_number is auto-calculated by trigger
+          })
+          .select();
+
+        if (attemptError) {
+          console.error('❌ Error saving attempt history:', attemptError);
+        } else {
+          console.log('✅ Attempt #' + attemptData[0]?.attempt_number + ' saved to history');
+          // ✅ Mark as saved after successful insert
+          // hasSavedRef.current = true;
+        }
+      } catch (err) {
+        console.error('❌ Error saving to lesson_attempts:', err);
+      }
+
+      // STEP 2: UPDATE user_lesson (BEST score only)
       // Check if user_lesson record exists
       const { data: existingProgress, error: fetchError } = await supabase
         .from('user_lesson')
@@ -69,7 +146,20 @@ export default function LessonCompletePage() {
 
       console.log('📝 Existing progress:', existingProgress);
 
-      // If record exists, only update if new score is better
+      const dataToSave = {
+        user_id: user.id,
+        lesson_id: parseInt(lessonId),
+        best_score: totalScore,
+        matching_score: matchingScore,
+        fillwords_score: fillwordsScore,
+        quiz_score: quizScore,
+        best_stars: stars,
+        is_completed: true,
+        percentage_completed: 100,
+        last_accessed: new Date().toISOString()
+      };
+
+      // If record exists, update or keep existing if it's better
       if (existingProgress) {
         console.log('🔄 Record exists, checking if score is better...');
         console.log('   Old score:', existingProgress.best_score, 'New score:', totalScore);
@@ -81,6 +171,9 @@ export default function LessonCompletePage() {
             .from('user_lesson')
             .update({
               best_score: totalScore,
+              matching_score: matchingScore,
+              fillwords_score: fillwordsScore,
+              quiz_score: quizScore,
               best_stars: stars,
               is_completed: true,
               percentage_completed: 100,
@@ -97,42 +190,36 @@ export default function LessonCompletePage() {
           }
           
           console.log('✅ Updated better score:', totalScore, `Stars: ${stars}/3`);
+          console.log('✅ Score breakdown saved:', { matchingScore, fillwordsScore, quizScore });
           console.log('✅ Update result:', updateData);
         } else {
           console.log('ℹ️ Existing score is better or equal, not updating');
           console.log('   Keeping old score:', existingProgress.best_score, `Stars: ${existingProgress.best_stars}/3`);
         }
       } else {
-        // Create new record
-        console.log('➕ No existing record, creating new one...');
+        // No existing record, use UPSERT to handle race conditions
+        console.log('➕ No existing record, creating new one with UPSERT...');
         
-        const { data: insertData, error: insertError } = await supabase
+        const { data: upsertData, error: upsertError } = await supabase
           .from('user_lesson')
-          .insert({
-            user_id: user.id,
-            lesson_id: parseInt(lessonId),
-            best_score: totalScore,
-            best_stars: stars,
-            is_completed: true,
-            percentage_completed: 100,
-            last_accessed: new Date().toISOString()
+          .upsert(dataToSave, {
+            onConflict: 'user_id,lesson_id',
+            ignoreDuplicates: false
           })
           .select();
 
-        if (insertError) {
-          console.error('❌ Insert error:', insertError);
-          console.error('❌ Insert error details:', {
-            message: insertError.message,
-            details: insertError.details,
-            hint: insertError.hint,
-            code: insertError.code
-          });
-          throw insertError;
+        if (upsertError) {
+          console.error('❌ Upsert error:', upsertError);
+          throw upsertError;
         }
         
         console.log('✅ Saved new score:', totalScore, `Stars: ${stars}/3`);
-        console.log('✅ Insert result:', insertData);
+        console.log('✅ Score breakdown saved:', { matchingScore, fillwordsScore, quizScore });
+        console.log('✅ Upsert result:', upsertData);
       }
+
+      // After saving, fetch updated progress to check if next lesson is unlocked
+      await fetchUserProgress(user.id);
 
       console.log('🎉 Score save completed successfully!');
 
@@ -155,41 +242,55 @@ export default function LessonCompletePage() {
   useEffect(() => {
     console.log('🔄 Complete page mounted, loading data...');
     
-    // Load lesson data
-    const lessonData = getLessonById(lessonId);
-    setLesson(lessonData);
-    console.log('📚 Lesson data loaded:', lessonData?.title);
+    const initializePage = async () => {
+      // Load lesson data
+      const lessonData = getLessonById(lessonId);
+      setLesson(lessonData);
+      console.log('📚 Lesson data loaded:', lessonData?.title);
 
-    // Load scores from localStorage ONLY
-    let loadedScores = null;
-    
-    try {
-      const stored = localStorage.getItem(`lesson_${lessonId}_scores`);
-      if (stored) {
-        loadedScores = JSON.parse(stored);
-        console.log('✅ Scores loaded from localStorage:', {
-          totalScore: loadedScores.totalScore,
-          matching: loadedScores.scores?.matching,
-          fillwords: loadedScores.scores?.fillwords,
-          quiz: loadedScores.scores?.quiz,
-          timestamp: loadedScores.timestamp,
-          age: loadedScores.timestamp ? `${Math.round((Date.now() - loadedScores.timestamp) / 1000)}s ago` : 'unknown'
-        });
-      } else {
-        console.warn('⚠️ No scores found in localStorage for lesson:', lessonId);
+      // Load scores from localStorage ONLY
+      let loadedScores = null;
+      
+      try {
+        const stored = localStorage.getItem(`lesson_${lessonId}_scores`);
+        if (stored) {
+          loadedScores = JSON.parse(stored);
+          console.log('✅ Scores loaded from localStorage:', {
+            totalScore: loadedScores.totalScore,
+            matching: loadedScores.scores?.matching,
+            fillwords: loadedScores.scores?.fillwords,
+            quiz: loadedScores.scores?.quiz,
+            timestamp: loadedScores.timestamp,
+            age: loadedScores.timestamp ? `${Math.round((Date.now() - loadedScores.timestamp) / 1000)}s ago` : 'unknown'
+          });
+        } else {
+          console.warn('⚠️ No scores found in localStorage for lesson:', lessonId);
+        }
+      } catch (e) {
+        console.error('❌ Error loading from localStorage:', e);
       }
-    } catch (e) {
-      console.error('❌ Error loading from localStorage:', e);
-    }
 
-    setScores(loadedScores);
-    
-    // Save to database after loading scores
-    if (loadedScores) {
-      saveScoreToDatabase(lessonId, loadedScores);
-    }
-    
-    setLoading(false);
+      setScores(loadedScores);
+      
+      // Get user and fetch progress
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await fetchUserProgress(user.id);
+        }
+      } catch (err) {
+        console.error('Error getting user:', err);
+      }
+      
+      // Save to database after loading scores
+      if (loadedScores) {
+        await saveScoreToDatabase(lessonId, loadedScores);
+      }
+      
+      setLoading(false);
+    };
+
+    initializePage();
   }, [lessonId]);
 
   const handleGoHome = () => {
@@ -244,6 +345,28 @@ export default function LessonCompletePage() {
   const handleNextLesson = () => {
     console.log('➡️ Going to next lesson, clearing current lesson scores...');
     
+    const totalScore = scores?.totalScore || 0;
+    const nextLessonId = parseInt(lessonId) + 1;
+
+    // Check if score is sufficient (>= 50)
+    if (totalScore < 50) {
+      alert('You need a score of at least 50 to unlock the next lesson. Try again to improve your score! 💪');
+      return;
+    }
+
+    // Check if next lesson exists
+    if (nextLessonId > 12) {
+      alert('Congratulations! You\'ve completed all lessons! 🎉');
+      handleGoHome();
+      return;
+    }
+
+    // Check if next lesson is actually unlocked (should be after save)
+    if (!canUnlockNext) {
+      alert('The next lesson is not yet unlocked. Please ensure you scored at least 50 points! 🔒');
+      return;
+    }
+    
     // Clear current lesson scores from localStorage
     try {
       localStorage.removeItem(`lesson_${lessonId}_scores`);
@@ -252,7 +375,6 @@ export default function LessonCompletePage() {
       console.error('❌ Error clearing localStorage:', e);
     }
     
-    const nextLessonId = parseInt(lessonId) + 1;
     router.push(`/lesson/${nextLessonId}`);
   };
 
@@ -292,23 +414,6 @@ export default function LessonCompletePage() {
             It looks like you haven't completed any activities yet, or the scores weren't saved properly.
           </p>
           
-          {/* Debug info for troubleshooting */}
-          <details className="mb-6 text-left">
-            <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700">
-              🔍 Debug Info (click to expand)
-            </summary>
-            <div className="mt-2 p-3 bg-gray-50 rounded text-xs font-mono">
-              <p>Lesson ID: {lessonId}</p>
-              <p>LocalStorage key: lesson_{lessonId}_scores</p>
-              <p>LocalStorage data: {localStorage.getItem(`lesson_${lessonId}_scores`) ? 'Found' : 'Not found'}</p>
-              {localStorage.getItem(`lesson_${lessonId}_scores`) && (
-                <pre className="mt-2 text-xs overflow-auto">
-                  {localStorage.getItem(`lesson_${lessonId}_scores`)}
-                </pre>
-              )}
-            </div>
-          </details>
-          
           <div className="space-y-3">
             <button
               onClick={() => router.push(`/lesson/${lessonId}`)}
@@ -327,6 +432,10 @@ export default function LessonCompletePage() {
       </div>
     );
   }
+
+  // Check if this is the last lesson
+  const isLastLesson = parseInt(lessonId) >= 12;
+  const nextLessonId = parseInt(lessonId) + 1;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-100 via-blue-100 to-purple-100 flex items-center justify-center p-4">
@@ -377,86 +486,81 @@ export default function LessonCompletePage() {
           </div>
         </div>
 
-        {/* Activity Breakdown */}
-        <div className="mb-8">
-          <h3 className="text-xl font-bold text-gray-700 mb-4 text-center">Activity Scores</h3>
-          <div className="space-y-4">
-            {/* Matching Activity */}
-            <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white text-xl">
-                    🔗
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-800">Matching Activity</p>
-                    <p className="text-sm text-gray-500">Connect words with images</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-purple-600">{matchingScore}</p>
-                  <p className="text-sm text-gray-500">out of 20</p>
-                </div>
+        {/* Quick Score Summary */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 mb-6 border border-blue-200">
+          <h3 className="text-lg font-bold text-gray-800 mb-3 text-center">📊 Score Summary</h3>
+          <div className="grid grid-cols-3 gap-4">
+            {/* Matching Score */}
+            <div className="text-center">
+              <div className="bg-purple-100 rounded-lg p-3 mb-2">
+                <span className="text-3xl">🔗</span>
               </div>
-              <div className="mt-3 w-full bg-purple-200 rounded-full h-2">
-                <div 
-                  className="bg-purple-600 h-2 rounded-full transition-all duration-1000"
-                  style={{ width: `${(matchingScore / 20) * 100}%` }}
-                ></div>
-              </div>
+              <p className="text-sm text-gray-600 mb-1">Matching</p>
+              <p className="text-2xl font-bold text-purple-600">{matchingScore}</p>
+              <p className="text-xs text-gray-500">out of 20</p>
             </div>
 
-            {/* Fill Words Activity */}
-            <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white text-xl">
-                    ✏️
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-800">Fill Words Activity</p>
-                    <p className="text-sm text-gray-500">Connect letters to form words</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-orange-600">{fillwordsScore}</p>
-                  <p className="text-sm text-gray-500">out of 40</p>
-                </div>
+            {/* Fill Words Score */}
+            <div className="text-center">
+              <div className="bg-orange-100 rounded-lg p-3 mb-2">
+                <span className="text-3xl">✏️</span>
               </div>
-              <div className="mt-3 w-full bg-orange-200 rounded-full h-2">
-                <div 
-                  className="bg-orange-600 h-2 rounded-full transition-all duration-1000"
-                  style={{ width: `${(fillwordsScore / 40) * 100}%` }}
-                ></div>
-              </div>
+              <p className="text-sm text-gray-600 mb-1">Fill Words</p>
+              <p className="text-2xl font-bold text-orange-600">{fillwordsScore}</p>
+              <p className="text-xs text-gray-500">out of 40</p>
             </div>
 
-            {/* Quiz Activity */}
-            <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-xl">
-                    🎯
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-800">Quiz Activity</p>
-                    <p className="text-sm text-gray-500">Match characters to actions</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-green-600">{quizScore}</p>
-                  <p className="text-sm text-gray-500">out of 40</p>
-                </div>
+            {/* Quiz Score */}
+            <div className="text-center">
+              <div className="bg-green-100 rounded-lg p-3 mb-2">
+                <span className="text-3xl">🎯</span>
               </div>
-              <div className="mt-3 w-full bg-green-200 rounded-full h-2">
-                <div 
-                  className="bg-green-600 h-2 rounded-full transition-all duration-1000"
-                  style={{ width: `${(quizScore / 40) * 100}%` }}
-                ></div>
-              </div>
+              <p className="text-sm text-gray-600 mb-1">Quiz</p>
+              <p className="text-2xl font-bold text-green-600">{quizScore}</p>
+              <p className="text-xs text-gray-500">out of 40</p>
             </div>
           </div>
         </div>
+
+        {/* Score Requirement Notice */}
+        {totalScore < 50 && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-center space-x-2 mb-2">
+              <span className="text-2xl">🔒</span>
+              <h3 className="text-lg font-bold text-red-700">Score Too Low</h3>
+            </div>
+            <p className="text-center text-red-600 text-sm">
+              You need a score of at least <strong>50 points</strong> to unlock the next lesson.
+              Try again to improve your score!
+            </p>
+          </div>
+        )}
+
+        {/* Next Lesson Unlocked Notice */}
+        {totalScore >= 50 && !isLastLesson && (
+          <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-center space-x-2 mb-2">
+              <span className="text-2xl">🎉</span>
+              <h3 className="text-lg font-bold text-green-700">Next Lesson Unlocked!</h3>
+            </div>
+            <p className="text-center text-green-600 text-sm">
+              Great job! You can now move on to <strong>Lesson {nextLessonId}</strong>!
+            </p>
+          </div>
+        )}
+
+        {/* Completion Notice for Last Lesson */}
+        {isLastLesson && totalScore >= 50 && (
+          <div className="bg-purple-50 border-2 border-purple-300 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-center space-x-2 mb-2">
+              <span className="text-2xl">🏆</span>
+              <h3 className="text-lg font-bold text-purple-700">Congratulations!</h3>
+            </div>
+            <p className="text-center text-purple-600 text-sm">
+              You've completed all lessons! Amazing work! 🎓
+            </p>
+          </div>
+        )}
 
         {/* Performance Message */}
         <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200">
@@ -464,7 +568,7 @@ export default function LessonCompletePage() {
             {totalScore >= 90 && "Outstanding work! You've mastered this lesson! 🎓"}
             {totalScore >= 70 && totalScore < 90 && "Excellent progress! You're doing great! 📚"}
             {totalScore >= 50 && totalScore < 70 && "Good effort! Keep practicing to improve! 💪"}
-            {totalScore < 50 && "Don't give up! Practice makes perfect! 🌱"}
+            {totalScore < 50 && "Don't give up! Practice makes perfect! Try again to score higher! 🌱"}
           </p>
         </div>
 
@@ -478,13 +582,20 @@ export default function LessonCompletePage() {
             <span>Try Again</span>
           </button>
           
-          <button
-            onClick={handleNextLesson}
-            className="px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 flex items-center justify-center space-x-2 shadow-lg"
-          >
-            <span>➡️</span>
-            <span>Next Lesson</span>
-          </button>
+          {!isLastLesson && (
+            <button
+              onClick={handleNextLesson}
+              disabled={totalScore < 50}
+              className={`px-4 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 flex items-center justify-center space-x-2 shadow-lg ${
+                totalScore >= 50
+                  ? 'bg-green-500 hover:bg-green-600 text-white'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              <span>{totalScore >= 50 ? '➡️' : '🔒'}</span>
+              <span>Next Lesson</span>
+            </button>
+          )}
           
           <button
             onClick={handleGoHome}
@@ -494,19 +605,6 @@ export default function LessonCompletePage() {
             <span>Go Home</span>
           </button>
         </div>
-
-        {/* Debug Info (collapsible) */}
-        <details className="mt-6">
-          <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
-            Debug Info
-          </summary>
-          <div className="mt-2 p-3 bg-gray-50 rounded text-xs font-mono">
-            <p>Lesson ID: {lessonId}</p>
-            <p>Total Score: {totalScore}</p>
-            <p>Timestamp: {scores?.timestamp ? new Date(scores.timestamp).toLocaleString() : 'N/A'}</p>
-            <p>Data Age: {scores?.timestamp ? `${Math.round((Date.now() - scores.timestamp) / 1000)}s ago` : 'N/A'}</p>
-          </div>
-        </details>
       </div>
     </div>
   );
