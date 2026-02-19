@@ -4,26 +4,33 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { generatePersonalizedQuiz, generateQuizFeedback } from '../../lib/gemini';
 import { getLessonById } from '../../data/lessons';
+import { MultipleChoiceQuestion } from '../../lesson/components/QuizQuestionComponents';
 
 // Quiz metadata
 const quizMetadata = {
   quiz1: {
     unit: 1,
-    title: "Unit 1 Checkpoint Quiz",
+    title: "Unit 1 Adventure Quiz",
     lessonsIncluded: [1, 2, 3, 4],
-    description: "Test your knowledge of short vowels a, e, and i!"
+    description: "Join the jungle safari to test your reading skills!",
+    mascot: "🦁",
+    theme: "jungle"
   },
   quiz2: {
     unit: 2,
-    title: "Unit 2 Checkpoint Quiz",
+    title: "Unit 2 Ocean Quest",
     lessonsIncluded: [5, 6, 7, 8],
-    description: "Show what you learned about short o, u, and blends!"
+    description: "Dive deep and discover ocean words!",
+    mascot: "🐠",
+    theme: "ocean"
   },
   quiz3: {
     unit: 3,
-    title: "Unit 3 Final Quiz",
+    title: "Unit 3 Space Mission",
     lessonsIncluded: [9, 10, 11, 12],
-    description: "Final challenge with long vowels and all we've learned!"
+    description: "Blast off and reach for the stars!",
+    mascot: "🚀",
+    theme: "space"
   }
 };
 
@@ -38,10 +45,39 @@ export default function QuizPage() {
   const [quizData, setQuizData] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
+  const [answeredQuestions, setAnsweredQuestions] = useState({});
   const [showResults, setShowResults] = useState(false);
   const [quizResults, setQuizResults] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [error, setError] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // Theme colors based on quiz type
+  const themes = {
+    jungle: {
+      bg: "from-green-300 via-yellow-200 to-green-400",
+      primary: "bg-green-500 hover:bg-green-600",
+      secondary: "bg-yellow-500 hover:bg-yellow-600",
+      accent: "border-green-400",
+      text: "text-green-700"
+    },
+    ocean: {
+      bg: "from-blue-300 via-cyan-200 to-blue-400",
+      primary: "bg-blue-500 hover:bg-blue-600",
+      secondary: "bg-cyan-500 hover:bg-cyan-600",
+      accent: "border-blue-400",
+      text: "text-blue-700"
+    },
+    space: {
+      bg: "from-purple-400 via-pink-300 to-indigo-400",
+      primary: "bg-purple-500 hover:bg-purple-600",
+      secondary: "bg-pink-500 hover:bg-pink-600",
+      accent: "border-purple-400",
+      text: "text-purple-700"
+    }
+  };
+
+  const currentTheme = themes[quizMetadata[quizId]?.theme] || themes.jungle;
 
   // Check authentication
   useEffect(() => {
@@ -60,7 +96,6 @@ export default function QuizPage() {
         setLoading(false);
       }
     };
-
     checkAuth();
   }, [router]);
 
@@ -98,7 +133,7 @@ export default function QuizPage() {
           title: lesson.title,
           focus: lesson.focus,
           words: lesson.content.vocabulary.words.map(w => w.word),
-          emoji: lesson.content.vocabulary.words.map(w => w.emoji || '📝') // Extract emojis
+          emoji: lesson.content.vocabulary.words.map(w => w.emoji || '📝')
         };
       });
 
@@ -109,19 +144,6 @@ export default function QuizPage() {
         const matchingScore = progress?.matching_score || 0;
         const fillwordsScore = progress?.fillwords_score || 0;
         const quizScore = progress?.quiz_score || 0;
-        
-        // Determine weak/strong areas based on individual activity scores
-        let weakAreas = [];
-        let strongAreas = [];
-        
-        if (matchingScore < 15) weakAreas.push('word-image matching');
-        else if (matchingScore >= 18) strongAreas.push('word recognition');
-        
-        if (fillwordsScore < 28) weakAreas.push('spelling and word formation');
-        else if (fillwordsScore >= 35) strongAreas.push('phonics and spelling');
-        
-        if (quizScore < 28) weakAreas.push('comprehension');
-        else if (quizScore >= 35) strongAreas.push('reading comprehension');
 
         return {
           lessonId,
@@ -129,18 +151,16 @@ export default function QuizPage() {
           matchingScore,
           fillwordsScore,
           quizScore,
-          stars: progress?.best_stars || 0,
-          weakAreas,
-          strongAreas
+          stars: progress?.best_stars || 0
         };
       });
 
       console.log('Generating quiz with data:', { lessonsData, userPerformance });
 
-      // Generate quiz using Gemini - pass correct parameters
+      // Generate quiz using Gemini
       const questions = await generatePersonalizedQuiz(
-        { userPerformance }, // studentPerformance object
-        lessonsData // lessonsInUnit array
+        { userPerformance },
+        lessonsData
       );
 
       // Structure the quiz data
@@ -160,10 +180,21 @@ export default function QuizPage() {
     }
   };
 
-  const handleAnswerSelect = (answer) => {
+  const handleAnswerSelect = (answer, isCorrect) => {
+    // Store the answer
     setSelectedAnswers({
       ...selectedAnswers,
       [currentQuestion]: answer
+    });
+
+    // Mark this question as answered
+    setAnsweredQuestions({
+      ...answeredQuestions,
+      [currentQuestion]: {
+        answer,
+        isCorrect,
+        timestamp: Date.now()
+      }
     });
   };
 
@@ -204,6 +235,12 @@ export default function QuizPage() {
     };
 
     setQuizResults(results);
+
+    if (score >= 70) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    }
+
     setShowResults(true);
 
     // Generate AI feedback
@@ -213,19 +250,18 @@ export default function QuizPage() {
         quizData.questions.length,
         incorrectQuestions
       );
-      
+
       setFeedback({
         encouragement: feedbackText,
-        recommendations: incorrectQuestions.length > 0 
-          ? [`Practice ${incorrectQuestions.length} questions you missed`, 'Review the explanations below', 'Try the quiz again to improve your score']
-          : ['You got all questions correct! Great job!', 'Try the next unit to continue learning']
+        recommendations: incorrectQuestions.length > 0
+          ? [`Practice ${incorrectQuestions.length} questions you missed`, 'Review the explanations', 'Try the quiz again to improve']
+          : ['Perfect score! Amazing job!', 'Try the next quiz to continue learning']
       });
     } catch (err) {
       console.error('Error generating feedback:', err);
-      // Set default feedback if API fails
       setFeedback({
-        encouragement: score >= 80 ? "Great job!" : score >= 60 ? "Good work!" : "Keep practicing!",
-        recommendations: ['Review the lessons again', 'Try the quiz again']
+        encouragement: score >= 80 ? "Great job! 🎉" : score >= 60 ? "Good work! 👍" : "Keep practicing! 💪",
+        recommendations: ['Review the lessons', 'Try again']
       });
     }
 
@@ -251,25 +287,6 @@ export default function QuizPage() {
         console.error('Error saving quiz:', insertError);
       } else {
         console.log('✅ Quiz saved successfully:', insertData);
-        
-        // Save individual questions
-        const questionsToInsert = quizData.questions.map((q, index) => ({
-          personalized_quiz_id: insertData.id,
-          question: q.question,
-          correct_answer: q.correctAnswer,
-          options: q.options,
-          explanation: q.explanation
-        }));
-
-        const { error: questionsError } = await supabase
-          .from('personalized_quiz_questions')
-          .insert(questionsToInsert);
-
-        if (questionsError) {
-          console.error('Error saving questions:', questionsError);
-        } else {
-          console.log('✅ Questions saved successfully');
-        }
       }
     } catch (error) {
       console.error('Error saving quiz results:', error);
@@ -279,10 +296,14 @@ export default function QuizPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 flex items-center justify-center">
-        <div className="bg-white rounded-xl shadow-xl p-8 text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-200 border-t-purple-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+      <div className={`min-h-screen bg-gradient-to-br ${currentTheme.bg} flex items-center justify-center`}>
+        <div className="bg-white rounded-3xl shadow-2xl p-12 text-center transform hover:scale-105 transition-transform">
+          <div className="text-8xl mb-6 animate-bounce">🎈</div>
+          <div className="flex space-x-2 justify-center">
+            <div className="w-4 h-4 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
+            <div className="w-4 h-4 bg-pink-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+            <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+          </div>
         </div>
       </div>
     );
@@ -291,16 +312,20 @@ export default function QuizPage() {
   // Generating quiz
   if (generating) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-xl p-8 text-center max-w-md">
-          <div className="text-6xl mb-4 animate-bounce">🎯</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Creating Your Personalized Quiz!</h2>
-          <div className="flex justify-center space-x-2 mb-4">
-            <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
-            <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-            <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+      <div className={`min-h-screen bg-gradient-to-br ${currentTheme.bg} flex items-center justify-center p-4`}>
+        <div className="bg-white rounded-3xl shadow-2xl p-12 text-center max-w-lg transform hover:rotate-1 transition-transform">
+          <div className="text-9xl mb-6 animate-spin">{quizMetadata[quizId]?.mascot}</div>
+          <h2 className="text-4xl font-black text-gray-800 mb-4 animate-pulse">
+            Creating Your Adventure!
+          </h2>
+          <div className="flex justify-center space-x-3 mb-6">
+            <div className="w-5 h-5 bg-green-500 rounded-full animate-bounce"></div>
+            <div className="w-5 h-5 bg-yellow-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+            <div className="w-5 h-5 bg-red-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
           </div>
-          <p className="text-gray-600">We're making special questions just for you based on what you've learned!</p>
+          <p className="text-xl text-gray-600">
+            ✨ Making special questions just for you! ✨
+          </p>
         </div>
       </div>
     );
@@ -309,23 +334,23 @@ export default function QuizPage() {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-100 to-pink-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-xl p-8 text-center max-w-md">
-          <div className="text-6xl mb-4">😕</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Oops!</h2>
-          <p className="text-red-600 mb-6">{error}</p>
-          <div className="space-y-3">
+      <div className={`min-h-screen bg-gradient-to-br ${currentTheme.bg} flex items-center justify-center p-4`}>
+        <div className="bg-white rounded-3xl shadow-2xl p-12 text-center max-w-md">
+          <div className="text-9xl mb-6 animate-bounce">😢</div>
+          <h2 className="text-4xl font-black text-gray-800 mb-4">Oops!</h2>
+          <p className="text-xl text-red-600 mb-8">{error}</p>
+          <div className="space-y-4">
             <button
               onClick={generateQuiz}
-              className="w-full px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold transition-all"
+              className={`w-full px-8 py-4 ${currentTheme.primary} text-white rounded-2xl font-black text-xl shadow-lg transform hover:scale-105 transition-all`}
             >
-              Try Again
+              🔄 Try Again!
             </button>
             <button
               onClick={() => router.push('/')}
-              className="w-full px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg font-semibold transition-all"
+              className="w-full px-8 py-4 bg-gray-400 hover:bg-gray-500 text-white rounded-2xl font-black text-xl shadow-lg transform hover:scale-105 transition-all"
             >
-              Go Home
+              🏠 Go Home
             </button>
           </div>
         </div>
@@ -336,54 +361,97 @@ export default function QuizPage() {
   // Results view
   if (showResults && quizResults) {
     const stars = quizResults.score >= 90 ? 3 : quizResults.score >= 70 ? 2 : quizResults.score >= 50 ? 1 : 0;
-    const performanceColor = quizResults.score >= 90 ? 'text-yellow-500' : quizResults.score >= 70 ? 'text-green-500' : quizResults.score >= 50 ? 'text-blue-500' : 'text-orange-500';
+    const celebration = quizResults.score >= 90 ? "🎉🎊🏆" : quizResults.score >= 70 ? "🎉😊👏" : quizResults.score >= 50 ? "👍😊✨" : "💪🌟📚";
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
-          <div className="text-center mb-8">
-            <div className="text-6xl mb-4">🎉</div>
-            <div className="flex justify-center space-x-2 mb-4">
+      <div className={`min-h-screen bg-gradient-to-br ${currentTheme.bg} flex items-center justify-center p-4 relative overflow-hidden`}>
+        {/* Confetti effect */}
+        {showConfetti && (
+          <div className="absolute inset-0 pointer-events-none">
+            {[...Array(30)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute animate-ping"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 2}s`,
+                  fontSize: '2rem'
+                }}
+              >
+                {['🎉', '⭐', '🎊', '✨', '🌟'][Math.floor(Math.random() * 5)]}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="bg-white rounded-3xl shadow-2xl p-12 max-w-3xl w-full transform hover:scale-105 transition-transform">
+          {/* Celebration */}
+          <div className="text-center mb-10">
+            <div className="text-9xl mb-6 animate-bounce">{celebration.split('').map((emoji, i) => (
+              <span key={i} className="inline-block animate-bounce" style={{animationDelay: `${i * 0.1}s`}}>
+                {emoji}
+              </span>
+            ))}</div>
+
+            {/* Stars */}
+            <div className="flex justify-center space-x-4 mb-6">
               {[1, 2, 3].map((star) => (
-                <span key={star} className={`text-4xl ${star <= stars ? 'animate-bounce' : 'opacity-30'}`}>
+                <span
+                  key={star}
+                  className={`text-7xl transition-all duration-500 ${
+                    star <= stars ? 'animate-bounce scale-100' : 'opacity-20 scale-75'
+                  }`}
+                  style={{ animationDelay: `${star * 0.2}s` }}
+                >
                   ⭐
                 </span>
               ))}
             </div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">Quiz Complete!</h1>
-            <p className="text-xl text-gray-600">{quizMetadata[quizId].title}</p>
+
+            <h1 className="text-5xl font-black text-gray-800 mb-3 animate-pulse">
+              Quiz Complete!
+            </h1>
+            <p className="text-2xl text-gray-600 font-bold">{quizMetadata[quizId].title}</p>
           </div>
 
           {/* Score Display */}
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 mb-6">
+          <div className={`bg-gradient-to-r ${currentTheme.bg} rounded-3xl p-10 mb-10 shadow-xl transform hover:scale-105 transition-transform`}>
             <div className="text-center">
-              <p className="text-lg text-gray-600 mb-2">Your Score</p>
-              <div className="flex items-center justify-center space-x-4">
-                <span className={`text-6xl font-bold ${performanceColor}`}>{quizResults.score}</span>
-                <span className="text-3xl text-gray-400">/</span>
-                <span className="text-4xl font-bold text-gray-600">100</span>
+              <p className="text-2xl font-bold text-gray-700 mb-4">YOUR SCORE</p>
+              <div className="flex items-center justify-center space-x-6">
+                <span className="text-8xl font-black text-white drop-shadow-lg">
+                  {quizResults.score}
+                </span>
+                <span className="text-6xl text-white/70">/</span>
+                <span className="text-7xl font-black text-white/90">100</span>
               </div>
-              <p className="text-gray-600 mt-2">
-                {quizResults.correct} out of {quizResults.total} correct
+              <p className="text-2xl font-bold text-gray-700 mt-4">
+                {quizResults.correct} out of {quizResults.total} correct! 🎯
               </p>
             </div>
           </div>
 
           {/* AI Feedback */}
           {feedback && (
-            <div className="mb-6">
-              <div className="bg-blue-50 rounded-lg p-5 mb-4 border border-blue-200">
-                <h3 className="text-lg font-bold text-blue-800 mb-2">💬 Your Teacher Says:</h3>
-                <p className="text-gray-700">{feedback.encouragement}</p>
+            <div className="mb-10">
+              <div className="bg-yellow-50 rounded-3xl p-8 mb-6 border-4 border-yellow-300 shadow-lg transform hover:rotate-1 transition-transform">
+                <div className="flex items-start space-x-4">
+                  <div className="text-5xl">{quizMetadata[quizId]?.mascot}</div>
+                  <div>
+                    <h3 className="text-2xl font-black text-yellow-800 mb-3">Your Teacher Says:</h3>
+                    <p className="text-xl text-gray-800 leading-relaxed">{feedback.encouragement}</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="bg-green-50 rounded-lg p-5 border border-green-200">
-                <h3 className="text-lg font-bold text-green-800 mb-3">📚 What to Practice:</h3>
-                <ul className="space-y-2">
+              <div className="bg-green-50 rounded-3xl p-8 border-4 border-green-300 shadow-lg">
+                <h3 className="text-2xl font-black text-green-800 mb-4">📚 What to Practice:</h3>
+                <ul className="space-y-3">
                   {feedback.recommendations.map((rec, index) => (
-                    <li key={index} className="flex items-start space-x-2">
-                      <span className="text-green-600 mt-1">✓</span>
-                      <span className="text-gray-700">{rec}</span>
+                    <li key={index} className="flex items-start space-x-3">
+                      <span className="text-2xl text-green-600 mt-1">✓</span>
+                      <span className="text-lg text-gray-700">{rec}</span>
                     </li>
                   ))}
                 </ul>
@@ -392,22 +460,23 @@ export default function QuizPage() {
           )}
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <button
               onClick={() => {
                 setShowResults(false);
                 setQuizData(null);
                 setCurrentQuestion(0);
                 setSelectedAnswers({});
+                setAnsweredQuestions({});
                 generateQuiz();
               }}
-              className="px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold transition-all"
+              className={`px-10 py-6 ${currentTheme.primary} text-white rounded-3xl font-black text-2xl shadow-xl transform hover:scale-110 hover:rotate-2 transition-all`}
             >
-              🔄 Try Again
+              🔄 Try Again!
             </button>
             <button
               onClick={() => router.push('/')}
-              className="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold transition-all"
+              className="px-10 py-6 bg-gray-500 hover:bg-gray-600 text-white rounded-3xl font-black text-2xl shadow-xl transform hover:scale-110 hover:rotate-2 transition-all"
             >
               🏠 Go Home
             </button>
@@ -423,132 +492,108 @@ export default function QuizPage() {
   }
 
   const question = quizData.questions[currentQuestion];
-  const isAnswered = selectedAnswers[currentQuestion] !== undefined;
-  const isLastQuestion = currentQuestion === quizData.questions.length - 1;
-  const allQuestionsAnswered = Object.keys(selectedAnswers).length === quizData.questions.length;
+  const progress = ((currentQuestion + 1) / quizData.questions.length) * 100;
+  const isQuestionAnswered = answeredQuestions[currentQuestion] !== undefined;
+  const allQuestionsAnswered = Object.keys(answeredQuestions).length === quizData.questions.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 p-4">
-      <div className="max-w-4xl mx-auto py-8">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-800">{quizMetadata[quizId].title}</h1>
+    <div className={`min-h-screen bg-gradient-to-br ${currentTheme.bg} p-4`}>
+      <div className="max-w-5xl mx-auto py-8">
+        {/* Header Card */}
+        <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8 transform hover:scale-105 transition-transform">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <div className="text-6xl animate-bounce">{quizMetadata[quizId].mascot}</div>
+              <div>
+                <h1 className="text-3xl font-black text-gray-800">{quizMetadata[quizId].title}</h1>
+                <p className="text-lg text-gray-600">{quizMetadata[quizId].description}</p>
+              </div>
+            </div>
             <button
               onClick={() => router.push('/')}
-              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-all"
+              className="px-6 py-3 bg-red-400 hover:bg-red-500 text-white rounded-2xl font-black text-lg shadow-lg transform hover:scale-110 transition-all"
             >
-              Exit
+              ✖️ Exit
             </button>
           </div>
-          
-          {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div 
-              className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500"
-              style={{ width: `${((currentQuestion + 1) / quizData.questions.length) * 100}%` }}
-            ></div>
+
+          {/* Fun Progress Bar */}
+          <div className="relative w-full h-8 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+            <div
+              className={`h-full bg-gradient-to-r ${currentTheme.bg} transition-all duration-500 flex items-center justify-end pr-4`}
+              style={{ width: `${progress}%` }}
+            >
+              <span className="text-2xl animate-bounce">{quizMetadata[quizId].mascot}</span>
+            </div>
           </div>
-          <p className="text-sm text-gray-600 mt-2 text-center">
-            Question {currentQuestion + 1} of {quizData.questions.length}
+          <p className="text-center text-xl font-bold text-gray-700 mt-4">
+            Question {currentQuestion + 1} of {quizData.questions.length} 🎯
           </p>
         </div>
 
-        {/* Question Card */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
-          <div className="mb-8">
-            <div className="flex items-start space-x-3 mb-4">
-              <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-                {currentQuestion + 1}
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 flex-1">
-                {question.question}
-              </h2>
-            </div>
-          </div>
-
-          {/* Answer Options */}
-          <div className="space-y-4">
-            {question.options.map((option, index) => {
-              const isSelected = selectedAnswers[currentQuestion] === option;
-              
-              return (
-                <button
-                  key={index}
-                  onClick={() => handleAnswerSelect(option)}
-                  className={`w-full text-left p-6 rounded-xl border-2 transition-all duration-200 ${
-                    isSelected
-                      ? 'border-purple-500 bg-purple-50 shadow-md'
-                      : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      isSelected ? 'border-purple-500 bg-purple-500' : 'border-gray-300'
-                    }`}>
-                      {isSelected && <div className="w-3 h-3 bg-white rounded-full"></div>}
-                    </div>
-                    <span className="text-lg font-medium text-gray-800">{option}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Question Component */}
+        <MultipleChoiceQuestion
+          question={question.question}
+          options={question.options}
+          correctAnswer={question.correctAnswer}
+          onAnswer={handleAnswerSelect}
+          showResult={isQuestionAnswered}
+          userAnswer={selectedAnswers[currentQuestion]}
+        />
 
         {/* Navigation */}
-        <div className="flex justify-between items-center">
+        <div className="mt-8 flex justify-between items-center">
           <button
             onClick={handlePrevious}
             disabled={currentQuestion === 0}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+            className={`px-10 py-5 rounded-3xl font-black text-2xl shadow-xl transform transition-all ${
               currentQuestion === 0
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-gray-500 hover:bg-gray-600 text-white'
+                : 'bg-gray-500 hover:bg-gray-600 text-white hover:scale-110 hover:rotate-2'
             }`}
           >
-            ← Previous
+            ⬅️ Back
           </button>
 
-          {/* Answer Status Dots */}
-          <div className="flex space-x-2">
+          {/* Progress Dots */}
+          <div className="flex space-x-3">
             {quizData.questions.map((_, index) => (
               <div
                 key={index}
-                className={`w-3 h-3 rounded-full ${
-                  selectedAnswers[index] !== undefined
-                    ? 'bg-purple-500'
+                className={`w-5 h-5 rounded-full transition-all duration-300 ${
+                  answeredQuestions[index]
+                    ? `${currentTheme.primary} animate-bounce`
                     : index === currentQuestion
-                    ? 'bg-purple-300 ring-2 ring-purple-400'
-                    : 'bg-gray-300'
+                    ? 'bg-gray-400 ring-4 ring-gray-300 scale-125'
+                    : 'bg-gray-200'
                 }`}
               ></div>
             ))}
           </div>
 
-          {isLastQuestion ? (
+          {currentQuestion === quizData.questions.length - 1 ? (
             <button
               onClick={handleSubmit}
               disabled={!allQuestionsAnswered}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              className={`px-10 py-5 rounded-3xl font-black text-2xl shadow-xl transform transition-all ${
                 allQuestionsAnswered
-                  ? 'bg-green-500 hover:bg-green-600 text-white'
+                  ? 'bg-green-500 hover:bg-green-600 text-white hover:scale-110 hover:rotate-2 animate-pulse'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >
-              Submit Quiz
+              🎉 Finish!
             </button>
           ) : (
             <button
               onClick={handleNext}
-              disabled={!isAnswered}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                isAnswered
-                  ? 'bg-purple-500 hover:bg-purple-600 text-white'
+              disabled={!isQuestionAnswered}
+              className={`px-10 py-5 rounded-3xl font-black text-2xl shadow-xl transform transition-all ${
+                isQuestionAnswered
+                  ? `${currentTheme.primary} text-white hover:scale-110 hover:rotate-2`
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >
-              Next →
+              Next ➡️
             </button>
           )}
         </div>
