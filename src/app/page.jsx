@@ -51,7 +51,7 @@ const quizData = [
 ];
 
 // Fixed Navigation Buttons Component
-const NavigationButtons = ({ user, userProfile, router }) => {
+const NavigationButtons = ({ user, userProfile, router, challengeUnlocked }) => {
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -61,11 +61,19 @@ const NavigationButtons = ({ user, userProfile, router }) => {
     }
   };
 
+  const handleChallengeClick = () => {
+    if (challengeUnlocked) {
+      router.push('/challenge');
+    } else {
+      alert('🔒 Finish all 12 lessons to unlock the Endless Challenge Quiz!');
+    }
+  };
+
   return (
     <div className="fixed left-32 top-16 z-50 flex flex-col gap-6">
       {/* Profile Button Group */}
       <div className="flex flex-col items-center gap-1">
-        <button 
+        <button
           className="w-14 h-14 bg-blue-300 hover:bg-blue-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105 overflow-hidden"
           onClick={() => router.push('/profile')}
         >
@@ -88,7 +96,7 @@ const NavigationButtons = ({ user, userProfile, router }) => {
 
       {/* History Button Group */}
       <div className="flex flex-col items-center gap-1">
-        <button 
+        <button
           className="w-14 h-14 bg-orange-300 hover:bg-orange-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
           onClick={() => router.push('/history')}
         >
@@ -96,10 +104,10 @@ const NavigationButtons = ({ user, userProfile, router }) => {
         </button>
         <span className="text-sm font-medium text-gray-700">History</span>
       </div>
-      
+
       {/* Details Button Group */}
       <div className="flex flex-col items-center gap-1">
-        <button 
+        <button
           className="w-14 h-14 bg-purple-300 hover:bg-purple-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
           onClick={() => router.push('/details')}
         >
@@ -108,10 +116,37 @@ const NavigationButtons = ({ user, userProfile, router }) => {
         <span className="text-sm font-medium text-gray-700">Details</span>
       </div>
 
+      {/* Leaderboard Button */}
+      <div className="flex flex-col items-center gap-1">
+        <button
+          className="w-14 h-14 bg-amber-300 hover:bg-amber-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
+          onClick={() => router.push('/leaderboard')}
+        >
+          <span className="text-lg">🏆</span>
+        </button>
+        <span className="text-sm font-medium text-gray-700">Ranks</span>
+      </div>
+
+      {/* Challenge Quiz Button */}
+      <div className="flex flex-col items-center gap-1">
+        <button
+          className={`w-14 h-14 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105 ${
+            challengeUnlocked
+              ? 'bg-pink-400 hover:bg-pink-500'
+              : 'bg-gray-300 hover:bg-gray-400 opacity-70'
+          }`}
+          onClick={handleChallengeClick}
+          title={challengeUnlocked ? 'Endless Challenge Quiz' : 'Finish all 12 lessons to unlock'}
+        >
+          <span className="text-lg">{challengeUnlocked ? '🎯' : '🔒'}</span>
+        </button>
+        <span className="text-sm font-medium text-gray-700">Challenge</span>
+      </div>
+
       {/* Sign Out Button */}
       {user && (
         <div className="flex flex-col items-center gap-1">
-          <button 
+          <button
             className="w-14 h-14 bg-red-300 hover:bg-red-400 rounded-full shadow-md flex items-center justify-center text-white transition-all duration-200 hover:scale-105"
             onClick={handleSignOut}
           >
@@ -589,7 +624,16 @@ export default function HomePage() {
   return (
     <div className='min-h-screen bg-sky-100'>
       {/* Fixed Navigation Buttons - only show if authenticated */}
-      {user && <NavigationButtons user={user} userProfile={userProfile} router={router} />}
+      {user && (
+        <NavigationButtons
+          user={user}
+          userProfile={userProfile}
+          router={router}
+          challengeUnlocked={
+            (userProgress?.lessons || []).filter(l => l.is_completed && typeof l.lesson_id === 'number').length >= 12
+          }
+        />
+      )}
 
       <SVGRoadmap 
         curriculum={curriculum}
