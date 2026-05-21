@@ -1,6 +1,8 @@
 // LetterConnectionActivity - Cohesive Design System
+"use client";
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
+import { useAudioFeedback } from './useAudioFeedback';
 
 // Design system constants matching main activities
 const DESIGN = {
@@ -36,51 +38,8 @@ export const LetterConnectionActivity = ({
   onComplete
 }) => {
   const { speak } = useTextToSpeech();
+  const { playCorrectSound, playWrongSound } = useAudioFeedback();
   const containerRef = useRef(null);
-  
-  // Sound effects
-  const playCorrectSound = () => {
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.type = 'sine';
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      speak("Correct!", { rate: 2.0, pitch: 1.5, volume: 0.5 });
-    }
-  };
-
-  const playWrongSound = () => {
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-      
-      oscillator.type = 'sawtooth';
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.2);
-    } catch (error) {
-      speak("Try again", { rate: 1.5, pitch: 0.8 });
-    }
-  };
 
   // Generate deterministic seed from answer
   const generateSeedFromAnswer = (answer, step) => {
@@ -447,7 +406,7 @@ export const LetterConnectionActivity = ({
     const isCorrect = formedWord === targetWord;
     
     if (isCorrect) {
-      playCorrectSound();
+      playCorrectSound(() => speak("Correct!", { rate: 2.0, pitch: 1.5, volume: 0.5 }));
       setShowHint(false);
       
       setTimeout(() => {
@@ -477,7 +436,7 @@ export const LetterConnectionActivity = ({
         }, 1500);
       }, 500);
     } else {
-      playWrongSound();
+      playWrongSound(() => speak("Try again", { rate: 1.5, pitch: 0.8 }));
       setShowHint(true);
       
       setTimeout(() => {
@@ -592,7 +551,7 @@ export const LetterConnectionActivity = ({
                   {currentQuestion.sentence}
                 </p>
                 
-                <button className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-xl font-bold text-sm mx-auto ${DESIGN.transitions} ${DESIGN.shadows.button} bg-orange-500 hover:bg-orange-600 text-white`}>
+                <button className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-xl font-bold text-sm mx-auto ${DESIGN.transitions} ${DESIGN.shadows.button} bg-white text-gray-700 hover:bg-gray-50 hover:scale-105`}>
                   <span>🔈</span>
                   <span>Click to hear</span>
                 </button>

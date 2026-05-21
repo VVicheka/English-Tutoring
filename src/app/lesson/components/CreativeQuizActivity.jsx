@@ -1,6 +1,8 @@
 // CreativeQuizActivity - Cohesive Design System
+"use client";
 import { useState, useEffect } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
+import { useAudioFeedback } from './useAudioFeedback';
 
 // Design system constants
 const DESIGN = {
@@ -37,59 +39,11 @@ export const CreativeQuizActivity = ({
   onComplete
 }) => {
   const { speak } = useTextToSpeech();
+  const { playCorrectSound, playWrongSound } = useAudioFeedback();
   const [selectedCharacter, setSelectedCharacter] = useState(null);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // Sound functions
-  const createAudioContext = () => {
-    return new (window.AudioContext || window.webkitAudioContext)();
-  };
-
-  const playCorrectSound = () => {
-    try {
-      const audioContext = createAudioContext();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.type = 'sine';
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      console.log('Web Audio not supported');
-    }
-  };
-
-  const playWrongSound = () => {
-    try {
-      const audioContext = createAudioContext();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(150, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-      
-      oscillator.type = 'sawtooth';
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.2);
-    } catch (error) {
-      console.log('Web Audio not supported');
-    }
-  };
 
   // Reset selection when step changes
   useEffect(() => {
@@ -229,9 +183,9 @@ export const CreativeQuizActivity = ({
                   </p>
                 </div>
                 
-                {/* Speaker Button - Compact */}
-                <button className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-xl font-bold text-sm ${DESIGN.transitions} ${DESIGN.shadows.button} bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white mx-auto`}>
-                  <span className="text-base">🔈</span>
+                {/* Speaker Button */}
+                <button className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-xl font-bold text-sm ${DESIGN.transitions} ${DESIGN.shadows.button} bg-white text-gray-700 hover:bg-gray-50 hover:scale-105 mx-auto`}>
+                  <span className="text-xl">🔈</span>
                   <span>Hear it</span>
                 </button>
               </div>

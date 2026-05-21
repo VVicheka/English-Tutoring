@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getLessonById } from '../../../data/lessons';
 import { supabase } from '../../../lib/supabase';
-import { isLessonUnlocked } from '../../../lib/lessonUtils';
+import { isLessonUnlocked, getPerformanceInfo } from '../../../lib/lessonUtils';
 
 export default function LessonCompletePage() {
   const router = useRouter();
@@ -49,7 +49,6 @@ export default function LessonCompletePage() {
       if (nextLessonId <= 12) {
         const nextLessonUnlocked = isLessonUnlocked(nextLessonId, data || []);
         setCanUnlockNext(nextLessonUnlocked);
-        console.log(`🔓 Next lesson (${nextLessonId}) unlocked:`, nextLessonUnlocked);
       }
     } catch (err) {
       console.error('Error in fetchUserProgress:', err);
@@ -59,32 +58,19 @@ export default function LessonCompletePage() {
   // Save score to Supabase database with breakdown
   const saveScoreToDatabase = async (lessonId, scoreData) => {
     // ✅ Check if already saved
-    if (hasSavedRef.current) {
-      console.log('⏭️ Already saved, skipping duplicate save');
-      return;
-    }
+    if (hasSavedRef.current) return;
 
     hasSavedRef.current = true;
 
     setSaving(true);
-    console.log('💾 Saving score to database...', scoreData);
 
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
-      if (userError) {
-        console.error('❌ Error getting user:', userError);
+      if (userError || !user) {
         setSaving(false);
         return;
       }
-      
-      if (!user) {
-        console.error('❌ No user found, cannot save score');
-        setSaving(false);
-        return;
-      }
-
-      console.log('✅ User found:', user.id);
 
       const totalScore = scoreData.totalScore;
       const matchingScore = scoreData.scores?.matching || 0;
@@ -92,17 +78,7 @@ export default function LessonCompletePage() {
       const quizScore = scoreData.scores?.quiz || 0;
       const stars = calculateStars(totalScore);
 
-      console.log('📊 Score data:', {
-        lessonId: parseInt(lessonId),
-        totalScore,
-        matchingScore,
-        fillwordsScore,
-        quizScore,
-        stars: `${stars}/3`,
-        userId: user.id
-      });
-
-      // 🆕 STEP 1: SAVE TO lesson_attempts (ALL attempts history)
+      // STEP 1: Save to lesson_attempts (history)
       try {
         const { data: attemptData, error: attemptError } = await supabase
           .from('lesson_attempts')
@@ -120,11 +96,7 @@ export default function LessonCompletePage() {
           .select();
 
         if (attemptError) {
-          console.error('❌ Error saving attempt history:', attemptError);
-        } else {
-          console.log('✅ Attempt #' + attemptData[0]?.attempt_number + ' saved to history');
-          // ✅ Mark as saved after successful insert
-          // hasSavedRef.current = true;
+          console.error('Error saving attempt history:', attemptError);
         }
       } catch (err) {
         console.error('❌ Error saving to lesson_attempts:', err);
@@ -139,12 +111,7 @@ export default function LessonCompletePage() {
         .eq('lesson_id', parseInt(lessonId))
         .maybeSingle();
 
-      if (fetchError) {
-        console.error('❌ Error fetching existing progress:', fetchError);
-        throw fetchError;
-      }
-
-      console.log('📝 Existing progress:', existingProgress);
+      if (fetchError) throw fetchError;
 
       const dataToSave = {
         user_id: user.id,
@@ -161,13 +128,8 @@ export default function LessonCompletePage() {
 
       // If record exists, update or keep existing if it's better
       if (existingProgress) {
-        console.log('🔄 Record exists, checking if score is better...');
-        console.log('   Old score:', existingProgress.best_score, 'New score:', totalScore);
-        
         if (totalScore > (existingProgress.best_score || 0)) {
-          console.log('✨ New score is better! Updating...');
-          
-          const { data: updateData, error: updateError } = await supabase
+          const { error: updateError } = await supabase
             .from('user_lesson')
             .update({
               best_score: totalScore,
@@ -181,26 +143,12 @@ export default function LessonCompletePage() {
               updated_at: new Date().toISOString()
             })
             .eq('user_id', user.id)
-            .eq('lesson_id', parseInt(lessonId))
-            .select();
+            .eq('lesson_id', parseInt(lessonId));
 
-          if (updateError) {
-            console.error('❌ Update error:', updateError);
-            throw updateError;
-          }
-          
-          console.log('✅ Updated better score:', totalScore, `Stars: ${stars}/3`);
-          console.log('✅ Score breakdown saved:', { matchingScore, fillwordsScore, quizScore });
-          console.log('✅ Update result:', updateData);
-        } else {
-          console.log('ℹ️ Existing score is better or equal, not updating');
-          console.log('   Keeping old score:', existingProgress.best_score, `Stars: ${existingProgress.best_stars}/3`);
+          if (updateError) throw updateError;
         }
       } else {
-        // No existing record, use UPSERT to handle race conditions
-        console.log('➕ No existing record, creating new one with UPSERT...');
-        
-        const { data: upsertData, error: upsertError } = await supabase
+        const { error: upsertError } = await supabase
           .from('user_lesson')
           .upsert(dataToSave, {
             onConflict: 'user_id,lesson_id',
@@ -208,66 +156,30 @@ export default function LessonCompletePage() {
           })
           .select();
 
-        if (upsertError) {
-          console.error('❌ Upsert error:', upsertError);
-          throw upsertError;
-        }
-        
-        console.log('✅ Saved new score:', totalScore, `Stars: ${stars}/3`);
-        console.log('✅ Score breakdown saved:', { matchingScore, fillwordsScore, quizScore });
-        console.log('✅ Upsert result:', upsertData);
+        if (upsertError) throw upsertError;
       }
 
       // After saving, fetch updated progress to check if next lesson is unlocked
       await fetchUserProgress(user.id);
 
-      console.log('🎉 Score save completed successfully!');
-
     } catch (error) {
-      console.error('❌ Error saving to database:', error);
-      if (error && typeof error === 'object') {
-        console.error('❌ Error details:', {
-          message: error.message || 'Unknown error',
-          name: error.name || 'Error',
-          code: error.code || 'No code',
-          details: error.details || 'No details',
-          hint: error.hint || 'No hint'
-        });
-      }
+      console.error('Error saving score to database:', error);
     } finally {
       setSaving(false);
     }
   };
 
   useEffect(() => {
-    console.log('🔄 Complete page mounted, loading data...');
-    
     const initializePage = async () => {
-      // Load lesson data
       const lessonData = getLessonById(lessonId);
       setLesson(lessonData);
-      console.log('📚 Lesson data loaded:', lessonData?.title);
 
-      // Load scores from localStorage ONLY
       let loadedScores = null;
-      
       try {
         const stored = localStorage.getItem(`lesson_${lessonId}_scores`);
-        if (stored) {
-          loadedScores = JSON.parse(stored);
-          console.log('✅ Scores loaded from localStorage:', {
-            totalScore: loadedScores.totalScore,
-            matching: loadedScores.scores?.matching,
-            fillwords: loadedScores.scores?.fillwords,
-            quiz: loadedScores.scores?.quiz,
-            timestamp: loadedScores.timestamp,
-            age: loadedScores.timestamp ? `${Math.round((Date.now() - loadedScores.timestamp) / 1000)}s ago` : 'unknown'
-          });
-        } else {
-          console.warn('⚠️ No scores found in localStorage for lesson:', lessonId);
-        }
+        if (stored) loadedScores = JSON.parse(stored);
       } catch (e) {
-        console.error('❌ Error loading from localStorage:', e);
+        console.error('Error loading scores from localStorage:', e);
       }
 
       setScores(loadedScores);
@@ -294,57 +206,23 @@ export default function LessonCompletePage() {
   }, [lessonId]);
 
   const handleGoHome = () => {
-    console.log('🏠 Going home, clearing lesson scores...');
-    
-    // Clear scores from localStorage
-    try {
-      localStorage.removeItem(`lesson_${lessonId}_scores`);
-      console.log('✅ Cleared localStorage scores');
-    } catch (e) {
-      console.error('❌ Error clearing localStorage:', e);
-    }
-    
+    try { localStorage.removeItem(`lesson_${lessonId}_scores`); } catch (_) {}
     router.push('/');
   };
 
   const handleRetry = () => {
-    console.log('🔄 Retry button clicked - clearing ALL data for fresh start');
-    
     try {
-      // Clear lesson scores
-      localStorage.removeItem(`lesson_${lessonId}_scores`);
-      
-      // Clear all activity progress
-      localStorage.removeItem(`lesson_${lessonId}_matching`);
-      localStorage.removeItem(`lesson_${lessonId}_fillwords`);
-      localStorage.removeItem(`lesson_${lessonId}_quiz`);
-      localStorage.removeItem(`lesson_${lessonId}_story`);
-      
-      // Clear any other lesson-related keys
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.includes(`lesson_${lessonId}`)) {
-          keysToRemove.push(key);
-        }
+        if (key && key.includes(`lesson_${lessonId}`)) keysToRemove.push(key);
       }
       keysToRemove.forEach(key => localStorage.removeItem(key));
-      
-      console.log('✅ Cleared localStorage keys:', keysToRemove);
-    } catch (e) {
-      console.error('❌ Error clearing localStorage:', e);
-    }
-    
-    // Navigate to lesson start with hard reload
-    setTimeout(() => {
-      console.log('🚀 Navigating to lesson start with hard reload');
-      window.location.href = `/lesson/${lessonId}`;
-    }, 100);
+    } catch (_) {}
+    window.location.href = `/lesson/${lessonId}`;
   };
 
   const handleNextLesson = () => {
-    console.log('➡️ Going to next lesson, clearing current lesson scores...');
-    
     const totalScore = scores?.totalScore || 0;
     const nextLessonId = parseInt(lessonId) + 1;
 
@@ -367,14 +245,7 @@ export default function LessonCompletePage() {
       return;
     }
     
-    // Clear current lesson scores from localStorage
-    try {
-      localStorage.removeItem(`lesson_${lessonId}_scores`);
-      console.log('✅ Cleared current lesson scores');
-    } catch (e) {
-      console.error('❌ Error clearing localStorage:', e);
-    }
-    
+    try { localStorage.removeItem(`lesson_${lessonId}_scores`); } catch (_) {}
     router.push(`/lesson/${nextLessonId}`);
   };
 
@@ -395,14 +266,7 @@ export default function LessonCompletePage() {
   const quizScore = scores?.scores?.quiz || 0;
   const stars = calculateStars(totalScore);
 
-  const getPerformanceLevel = (score) => {
-    if (score >= 90) return { level: 'Excellent!', emoji: '🌟', color: 'text-yellow-500', bgColor: 'bg-yellow-50' };
-    if (score >= 70) return { level: 'Great Job!', emoji: '🎉', color: 'text-green-500', bgColor: 'bg-green-50' };
-    if (score >= 50) return { level: 'Good Work!', emoji: '👍', color: 'text-blue-500', bgColor: 'bg-blue-50' };
-    return { level: 'Keep Practicing!', emoji: '💪', color: 'text-orange-500', bgColor: 'bg-orange-50' };
-  };
-
-  const performance = getPerformanceLevel(totalScore);
+  const performance = getPerformanceInfo(totalScore);
 
   if (!scores || totalScore === 0) {
     return (

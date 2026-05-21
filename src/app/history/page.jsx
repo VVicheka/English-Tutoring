@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { getLessonById } from '../data/lessons';
+import { getPerformanceInfo, formatDate } from '../lib/lessonUtils';
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -64,7 +65,6 @@ export default function HistoryPage() {
 
       if (error) throw error;
       setAttempts(data || []);
-      console.log('📚 Loaded', data?.length || 0, 'attempts');
     } catch (error) {
       console.error('Error fetching attempts:', error);
     }
@@ -77,36 +77,6 @@ export default function HistoryPage() {
     }
   };
 
-  const getPerformanceColor = (score) => {
-    if (score >= 90) return 'text-yellow-600 bg-yellow-50';
-    if (score >= 70) return 'text-green-600 bg-green-50';
-    if (score >= 50) return 'text-blue-600 bg-blue-50';
-    return 'text-orange-600 bg-orange-50';
-  };
-
-  const getPerformanceLabel = (score) => {
-    if (score >= 90) return 'Excellent';
-    if (score >= 70) return 'Great';
-    if (score >= 50) return 'Good';
-    return 'Practice More';
-  };
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
 
   // Group attempts by lesson
   const attemptsByLesson = attempts.reduce((acc, attempt) => {
@@ -258,11 +228,11 @@ export default function HistoryPage() {
                               
                               <div>
                                 <div className="flex items-center space-x-2 mb-1">
-                                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getPerformanceColor(attempt.total_score)}`}>
+                                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getPerformanceInfo(attempt.total_score).badgeClass}`}>
                                     {attempt.total_score}/100
                                   </span>
                                   <span className="text-sm text-gray-500">
-                                    {getPerformanceLabel(attempt.total_score)}
+                                    {getPerformanceInfo(attempt.total_score).label}
                                   </span>
                                   <div className="flex space-x-1">
                                     {[...Array(attempt.stars || 0)].map((_, i) => (

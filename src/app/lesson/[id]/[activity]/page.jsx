@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getLessonById } from '../../../data/lessons';
-import { 
-  WarmUpActivity, 
+import { getExpandedActivities } from '../../../lib/lessonUtils';
+import {
+  WarmUpActivity,
   VocabularyActivity, 
   StoryActivity, 
   MatchingActivity,
@@ -19,41 +20,53 @@ const ProgressBar = ({ currentIndex, totalActivities, lessonTitle, lessonId, cus
     : ((currentIndex + 1) / totalActivities) * 100;
 
   return (
-    <div className="bg-white shadow-lg border-b border-gray-200 py-3 px-4 flex-shrink-0">
-      <div className="flex items-center justify-between">
+    <div className="bg-white shadow-md border-b border-gray-100 py-2 px-4 flex-shrink-0">
+      <div className="flex items-center gap-3">
         <button
           onClick={onHome}
-          className="p-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium text-sm transition-all duration-200"
+          className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-medium transition-all duration-200 flex-shrink-0"
         >
           <span>🏠</span>
-          <span className="hidden sm:inline">Home</span>
+          <span className="hidden sm:inline text-xs">Home</span>
         </button>
-        
-        <div className="flex-1 ml-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                 {lessonId}
               </div>
-              <h1 className="text-sm md:text-lg font-bold text-gray-800 truncate">{lessonTitle}</h1>
+              <h1 className="text-sm font-bold text-gray-800 truncate">{lessonTitle}</h1>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-xs md:text-sm text-gray-600 flex-shrink-0 font-medium">
-                {currentPage}/{totalPages}
-              </span>
-              <span className="text-sm font-semibold text-blue-600">
+            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              <span className="text-xs text-gray-500 font-medium">{currentPage}/{totalPages}</span>
+              <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                 {Math.round(percentage)}%
               </span>
             </div>
           </div>
-          
-          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-500 ease-out"
+
+          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-1">
+            <div
+              className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${percentage}%` }}
-            >
-              <div className="h-full bg-white opacity-30 animate-pulse rounded-full"></div>
-            </div>
+            />
+          </div>
+
+          {/* Activity step dots */}
+          <div className="flex items-center justify-center gap-1">
+            {Array.from({ length: totalActivities }).map((_, i) => (
+              <div
+                key={i}
+                className={`rounded-full transition-all duration-300 ${
+                  i === currentIndex
+                    ? 'w-5 h-1.5 bg-blue-500'
+                    : i < currentIndex
+                      ? 'w-1.5 h-1.5 bg-green-400'
+                      : 'w-1.5 h-1.5 bg-gray-300'
+                }`}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -92,7 +105,7 @@ const ActivityNavigation = ({
         </div>
 
         <div className="text-center">
-          <p className="text-sm font-medium text-gray-600 capitalize">{activityDisplayName}</p>
+          <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-3 py-1 rounded-full capitalize">{activityDisplayName}</span>
         </div>
 
         <button
@@ -219,10 +232,8 @@ export default function ActivityPage() {
     
     try {
       localStorage.setItem(`lesson_${lessonId}_scores`, JSON.stringify(scoreData));
-      console.log('✅ Scores saved to localStorage:', scoreData);
       return true;
     } catch (e) {
-      console.error('❌ Error saving to localStorage:', e);
       return false;
     }
   };
@@ -251,7 +262,6 @@ export default function ActivityPage() {
       const saved = localStorage.getItem(`lesson_${lessonId}_scores`);
       if (saved) {
         const scoreData = JSON.parse(saved);
-        console.log('📊 Loading existing scores:', scoreData);
         
         if (scoreData.scores) {
           setActivityScores(scoreData.scores);
@@ -297,19 +307,6 @@ export default function ActivityPage() {
     if (totalActions === 0) return 0;
     const correctCount = Object.values(completedSteps).filter(step => step.isCorrect).length;
     return Math.round((correctCount / totalActions) * 40);
-  };
-
-  const getExpandedActivities = (lesson) => {
-    if (!lesson?.content?.practice?.activityB) {
-      return lesson.activities;
-    }
-    
-    const activities = [...lesson.activities];
-    const practiceIndex = activities.indexOf('practice');
-    if (practiceIndex !== -1) {
-      activities.splice(practiceIndex, 1, 'matching', 'fillwords');
-    }
-    return activities;
   };
 
   // Calculate total pages across all activities
@@ -370,58 +367,41 @@ export default function ActivityPage() {
 
   // Load lesson data
   useEffect(() => {
-    console.log('ActivityPage useEffect - lessonId:', lessonId, 'currentActivity:', currentActivity);
-    
     try {
       const lessonData = getLessonById(lessonId);
-      console.log('Found lesson data:', lessonData);
-      
+
       if (!lessonData) {
-        console.log('No lesson found, redirecting to home');
         setError('Lesson not found');
         setTimeout(() => router.push('/'), 2000);
         return;
       }
 
       const expandedActivities = getExpandedActivities(lessonData);
-      console.log('Expanded activities:', expandedActivities);
-
       const validActivity = expandedActivities.includes(currentActivity);
 
       if (!validActivity) {
-        console.log('Activity not found in expanded activities, redirecting to lesson start');
         setError('Activity not found');
         setTimeout(() => router.push(`/lesson/${lessonId}`), 2000);
         return;
       }
 
-      // If this is the first activity (warmup), clear any old progress
-      if (currentActivity === expandedActivities[0]) {
-        console.log('🆕 Starting lesson from beginning - checking if we should clear old progress');
-        
-        // Check if user explicitly wants to retry
-        if (typeof window !== 'undefined') {
-          try {
-            const hasScores = localStorage.getItem(`lesson_${lessonId}_scores`);
-            const hasMatching = localStorage.getItem(`lesson_${lessonId}_matching`);
-            const hasFillwords = localStorage.getItem(`lesson_${lessonId}_fillwords`);
-            const hasQuiz = localStorage.getItem(`lesson_${lessonId}_quiz`);
-            
-            // If no scores but has activity progress, this is a retry - clear everything
-            if (!hasScores && (hasMatching || hasFillwords || hasQuiz)) {
-              console.log('🔄 Detected retry attempt - clearing all activity progress');
-              localStorage.removeItem(`lesson_${lessonId}_matching`);
-              localStorage.removeItem(`lesson_${lessonId}_fillwords`);
-              localStorage.removeItem(`lesson_${lessonId}_quiz`);
-              localStorage.removeItem(`lesson_${lessonId}_story`);
-            }
-          } catch (e) {
-            console.error('Error checking localStorage:', e);
+      if (currentActivity === expandedActivities[0] && typeof window !== 'undefined') {
+        try {
+          const hasScores = localStorage.getItem(`lesson_${lessonId}_scores`);
+          const hasMatching = localStorage.getItem(`lesson_${lessonId}_matching`);
+          const hasFillwords = localStorage.getItem(`lesson_${lessonId}_fillwords`);
+          const hasQuiz = localStorage.getItem(`lesson_${lessonId}_quiz`);
+          if (!hasScores && (hasMatching || hasFillwords || hasQuiz)) {
+            localStorage.removeItem(`lesson_${lessonId}_matching`);
+            localStorage.removeItem(`lesson_${lessonId}_fillwords`);
+            localStorage.removeItem(`lesson_${lessonId}_quiz`);
+            localStorage.removeItem(`lesson_${lessonId}_story`);
           }
+        } catch (e) {
+          // localStorage unavailable
         }
       }
 
-      console.log('Setting lesson data and stopping loading');
       setLesson(lessonData);
       setLoading(false);
     } catch (err) {
@@ -439,8 +419,6 @@ export default function ActivityPage() {
           (currentActivity === 'fillwords' && localStorage.getItem(`lesson_${lessonId}_fillwords`)) ||
           (currentActivity === 'story' && localStorage.getItem(`lesson_${lessonId}_story`)) ||
           (currentActivity === 'quiz' && localStorage.getItem(`lesson_${lessonId}_quiz`));
-
-        console.log('Activity changed to:', currentActivity, 'Has stored progress:', hasStoredProgress);
 
         if (!hasStoredProgress) {
           if (currentActivity === 'story') {
@@ -562,10 +540,7 @@ export default function ActivityPage() {
       const totalSteps = lesson?.content?.practice?.activityB?.questions?.length || 0;
       const currentStepAttempted = wordConnectionCompletedSteps[wordConnectionStep];
       
-      if (!currentStepAttempted) {
-        console.log('Cannot proceed - current step not attempted');
-        return;
-      }
+      if (!currentStepAttempted) return;
       
       if (wordConnectionStep < totalSteps - 1) {
         setWordConnectionStep(prev => prev + 1);
@@ -575,28 +550,20 @@ export default function ActivityPage() {
       const totalSteps = lesson.content.quiz.actions.length;
       const currentStepAttempted = creativeQuizCompletedSteps[creativeQuizStep];
       
-      if (!currentStepAttempted) {
-        console.log('Cannot proceed - current quiz step not attempted');
-        return;
-      }
+      if (!currentStepAttempted) return;
       
       if (creativeQuizStep < totalSteps - 1) {
         setCreativeQuizStep(prev => prev + 1);
         return;
       }
     } else if (currentActivity === 'matching') {
-      if (!matchingCompleted) {
-        console.log('Cannot proceed - matching not completed');
-        return;
-      }
+      if (!matchingCompleted) return;
     }
 
     const hasNext = currentIndex < expandedActivities.length - 1;
     
     if (hasNext) {
       const nextActivity = expandedActivities[currentIndex + 1];
-      
-      // FIXED: Force save before navigation
       saveScoresToLocalStorage(activityScores, {
         matching: matchingCompleted,
         fillwords: wordConnectionCompletedSteps,
@@ -605,9 +572,6 @@ export default function ActivityPage() {
       
       router.push(`/lesson/${lessonId}/${nextActivity}`);
     } else {
-      console.log('Navigating to complete page');
-      
-      // FIXED: Save scores immediately before navigation
       const saved = saveScoresToLocalStorage(activityScores, {
         matching: matchingCompleted,
         fillwords: wordConnectionCompletedSteps,
@@ -804,7 +768,6 @@ export default function ActivityPage() {
             <MatchingActivity 
               content={activityContent} 
               onComplete={(correctCount, totalCount) => {
-                console.log('Matching activity completed');
                 setMatchingCompleted(true);
                 
                 const score = calculateMatchingScore(correctCount, totalCount);
@@ -816,14 +779,11 @@ export default function ActivityPage() {
                     matching: score
                   };
                   
-                  // Save immediately
                   saveScoresToLocalStorage(newScores, {
                     matching: true,
                     fillwords: wordConnectionCompletedSteps,
                     quiz: creativeQuizCompletedSteps
                   });
-                  
-                  console.log('Matching score saved:', score, '/', 20);
                   return newScores;
                 });
               }}
@@ -837,7 +797,6 @@ export default function ActivityPage() {
               currentStep={wordConnectionStep}
               completedSteps={wordConnectionCompletedSteps}
               onStepComplete={(stepIndex, stepData) => {
-                console.log('FillWords step completed:', stepIndex, stepData);
                 
                 setWordConnectionCompletedSteps(prev => {
                   const updatedSteps = {
@@ -855,23 +814,17 @@ export default function ActivityPage() {
                       fillwords: score
                     };
                     
-                    // Save immediately
                     saveScoresToLocalStorage(newScores, {
                       matching: matchingCompleted,
                       fillwords: updatedSteps,
                       quiz: creativeQuizCompletedSteps
                     });
-                    
-                    console.log('FillWords score saved:', score, '/', 40);
                     return newScores;
                   });
-                  
                   return updatedSteps;
                 });
               }}
-              onComplete={() => {
-                console.log('All fillwords completed');
-              }}
+              onComplete={() => {}}
             />
           );
           
@@ -882,41 +835,23 @@ export default function ActivityPage() {
               currentStep={creativeQuizStep}
               completedSteps={creativeQuizCompletedSteps}
               onStepComplete={(stepIndex, stepData) => {
-                console.log('Quiz step completed:', stepIndex, stepData);
-                
                 setCreativeQuizCompletedSteps(prev => {
-                  const updatedSteps = {
-                    ...prev,
-                    [stepIndex]: stepData
-                  };
-                  
+                  const updatedSteps = { ...prev, [stepIndex]: stepData };
                   const totalActions = lesson?.content?.quiz?.actions?.length || 0;
                   const score = calculateQuizScore(updatedSteps, totalActions);
-                  
-                  // FIXED: Update and save immediately
                   setActivityScores(prevScores => {
-                    const newScores = {
-                      ...prevScores,
-                      quiz: score
-                    };
-                    
-                    // Save immediately
+                    const newScores = { ...prevScores, quiz: score };
                     saveScoresToLocalStorage(newScores, {
                       matching: matchingCompleted,
                       fillwords: wordConnectionCompletedSteps,
                       quiz: updatedSteps
                     });
-                    
-                    console.log('Quiz score saved:', score, '/', 40);
                     return newScores;
                   });
-                  
                   return updatedSteps;
                 });
               }}
-              onComplete={() => {
-                console.log('All quiz completed');
-              }}
+              onComplete={() => {}}
             />
           );
           

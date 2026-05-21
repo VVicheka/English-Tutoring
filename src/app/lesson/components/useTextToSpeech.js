@@ -12,13 +12,6 @@ export const useTextToSpeech = () => {
     const loadVoices = () => {
       const availableVoices = speechSynthesis.getVoices();
       setVoices(availableVoices);
-
-      const femaleVoices = availableVoices.filter (v =>
-        v.name.includes('Female') ||
-        v.name.includes('Samantha') ||
-        v.name.includes('Zira')
-      );
-      console.log('Female voices found: ', femaleVoices.map(v => v.name));
     };
 
     loadVoices(); // Load immediately (for firefox and some browser)
@@ -60,9 +53,6 @@ export const useTextToSpeech = () => {
 
         if (femaleVoice) {
           utterance.voice = femaleVoice;
-          console.log('Using female voice:', femaleVoice.name);
-        } else {
-          console.warn('No female voice found, using default');
         }
 
         utterance.rate = options.rate || 0.75; // Change Reading Speed
@@ -96,12 +86,6 @@ export const useTextToSpeech = () => {
 
         speechSynthesis.speak(utterance);
 
-        setTimeout(() => {
-          if (!speechSynthesis.speaking && isSpeaking) {
-            setIsSpeaking(false);
-          }
-        }, 1000);
-
       } catch (err) {
         console.error('Error creating speech utterance:', err);
         setIsSpeaking(false);
@@ -121,17 +105,18 @@ export const useTextToSpeech = () => {
 
   const pause = () => {
     try {
-      
-    } catch (err) {
-      console.warn('Error stopping speech:', err);
+      speechSynthesis.pause();
       setIsSpeaking(false);
+    } catch (err) {
+      console.warn('Error pausing speech:', err);
     }
   };
 
   const resume = () => {
     try {
-      if (speechSynthesis.pause) {
+      if (speechSynthesis.resume) {
         speechSynthesis.resume();
+        setIsSpeaking(true);
       }
     } catch (err) {
       console.warn('Error resuming speech:', err);

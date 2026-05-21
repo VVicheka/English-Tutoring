@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getLessonById } from '../../data/lessons';
 import { supabase } from '../../lib/supabase';
+import { getPerformanceInfo, getExpandedActivities } from '../../lib/lessonUtils';
 
 export default function LessonPage() {
   const router = useRouter();
@@ -15,19 +16,13 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('LessonPage - lessonId:', lessonId);
-    
-    // Don't run if we're already redirecting
     if (isRedirecting) return;
 
     const loadLessonAndScore = async () => {
       try {
-        // Get lesson data
         const lesson = getLessonById(lessonId);
-        console.log('Found lesson:', lesson);
-        
+
         if (!lesson) {
-          console.log('No lesson found, redirecting to home');
           setError('Lesson not found');
           setTimeout(() => router.push('/'), 2000);
           return;
@@ -64,26 +59,9 @@ export default function LessonPage() {
           // Continue even if this fails
         }
 
-        // Get expanded activities (same logic as in ActivityPage)
-        const getExpandedActivities = (lesson) => {
-          if (!lesson?.content?.practice?.activityB) {
-            return lesson.activities;
-          }
-          
-          const activities = [...lesson.activities];
-          const practiceIndex = activities.indexOf('practice');
-          if (practiceIndex !== -1) {
-            activities.splice(practiceIndex, 1, 'matching', 'fillwords');
-          }
-          return activities;
-        };
-
         const expandedActivities = getExpandedActivities(lesson);
         
-        // Auto-redirect to first activity
         const firstActivity = expandedActivities[0];
-        console.log('Redirecting to first activity:', firstActivity);
-        
         setIsRedirecting(true);
         router.push(`/lesson/${lessonId}/${firstActivity}`);
         
@@ -97,12 +75,8 @@ export default function LessonPage() {
     loadLessonAndScore();
   }, [lessonId, router, isRedirecting]);
 
-  // ✅ NEW: Clear all localStorage data for this lesson when starting
   const clearLessonData = () => {
-    console.log('🧹 Clearing all lesson data for lesson:', lessonId);
-    
     try {
-      // Clear all lesson-related localStorage keys
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -110,15 +84,9 @@ export default function LessonPage() {
           keysToRemove.push(key);
         }
       }
-      
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-        console.log('🗑️ Removed:', key);
-      });
-      
-      console.log('✅ Cleared', keysToRemove.length, 'localStorage items');
+      keysToRemove.forEach(key => localStorage.removeItem(key));
     } catch (e) {
-      console.error('❌ Error clearing localStorage:', e);
+      // localStorage unavailable
     }
   };
 
@@ -127,17 +95,6 @@ export default function LessonPage() {
     clearLessonData();
     
     const lesson = getLessonById(lessonId);
-    const getExpandedActivities = (lesson) => {
-      if (!lesson?.content?.practice?.activityB) {
-        return lesson.activities;
-      }
-      const activities = [...lesson.activities];
-      const practiceIndex = activities.indexOf('practice');
-      if (practiceIndex !== -1) {
-        activities.splice(practiceIndex, 1, 'matching', 'fillwords');
-      }
-      return activities;
-    };
     const expandedActivities = getExpandedActivities(lesson);
     const firstActivity = expandedActivities[0];
     
@@ -149,12 +106,6 @@ export default function LessonPage() {
     }, 100);
   };
 
-  const getPerformanceLevel = (score) => {
-    if (score >= 90) return { level: 'Excellent!', emoji: '🌟', color: 'text-yellow-500', bgColor: 'bg-yellow-50' };
-    if (score >= 70) return { level: 'Great Job!', emoji: '🎉', color: 'text-green-500', bgColor: 'bg-green-50' };
-    if (score >= 50) return { level: 'Good Work!', emoji: '👍', color: 'text-blue-500', bgColor: 'bg-blue-50' };
-    return { level: 'Keep Practicing!', emoji: '💪', color: 'text-orange-500', bgColor: 'bg-orange-50' };
-  };
 
   // Show error if there's an issue
   if (error) {
@@ -179,7 +130,7 @@ export default function LessonPage() {
   // Show previous score summary if user has completed before
   if (showPreviousScore && previousScore && !loading) {
     const lesson = getLessonById(lessonId);
-    const performance = getPerformanceLevel(previousScore.totalScore);
+    const performance = getPerformanceInfo(previousScore.totalScore);
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-100 via-blue-100 to-purple-100 flex items-center justify-center p-4">

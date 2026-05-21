@@ -1,6 +1,8 @@
 // DragableMatchingActivity - Cohesive Design System
+"use client";
 import { useState, useEffect, useMemo } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
+import { useAudioFeedback } from './useAudioFeedback';
 
 // Design system constants
 const DESIGN = {
@@ -35,55 +37,7 @@ const DESIGN = {
 
 export const DragableMatchingActivity = ({ content, onComplete }) => {
   const { speak } = useTextToSpeech();
-  
-  // Sound effects
-  const createAudioContext = () => {
-    return new (window.AudioContext || window.webkitAudioContext)();
-  };
-
-  const playCorrectSound = () => {
-    try {
-      const audioContext = createAudioContext();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.type = 'sine';
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      console.log('Web Audio not supported');
-    }
-  };
-
-  const playWrongSound = () => {
-    try {
-      const audioContext = createAudioContext();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(150, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-      
-      oscillator.type = 'sawtooth';
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.2);
-    } catch (error) {
-      console.log('Web Audio not supported');
-    }
-  };
+  const { playCorrectSound, playWrongSound } = useAudioFeedback();
   
   // Create unique storage key
   const storageKey = useMemo(() => {

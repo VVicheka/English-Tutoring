@@ -46,11 +46,11 @@ const DESIGN_SYSTEM = {
 
 // Shared Components
 const ActivityHeader = ({ title, emoji, gradient, children }) => (
-  <div className="flex-shrink-0 mb-6">
-    <div className={`bg-gradient-to-r ${gradient} rounded-2xl ${DESIGN_SYSTEM.spacing.card} ${DESIGN_SYSTEM.shadows.card} border-4 border-white`}>
-      <div className="flex items-center justify-center space-x-3 mb-2">
-        <span className="text-4xl animate-bounce">{emoji}</span>
-        <h2 className="text-2xl md:text-3xl font-black text-gray-800">{title}</h2>
+  <div className="flex-shrink-0 mb-3">
+    <div className={`bg-gradient-to-r ${gradient} rounded-xl px-4 py-3 ${DESIGN_SYSTEM.shadows.card} border-2 border-white`}>
+      <div className="flex items-center justify-center space-x-2 mb-1">
+        <span className="text-2xl">{emoji}</span>
+        <h2 className="text-xl md:text-2xl font-black text-white">{title}</h2>
       </div>
       {children}
     </div>
@@ -515,6 +515,3 @@ export const QuizActivity = ({
     return <LoadingSpinner message="Unknown quiz type" />;
   }
 };
-
-// Re-export for backward compatibility
-export { CreativeQuizActivity };
