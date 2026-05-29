@@ -7,17 +7,19 @@ export const useTextToSpeech = () => {
   const utteranceRef = useRef(null);
 
   useEffect(() => {
-    setIsSupported('speechSynthesis' in window);
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    setIsSupported(true);
 
     const loadVoices = () => {
       const availableVoices = speechSynthesis.getVoices();
       setVoices(availableVoices);
     };
 
-    loadVoices(); // Load immediately (for firefox and some browser)
-    speechSynthesis.onvoiceschanged = loadVoices; // Load when ready (for chrome)
+    loadVoices(); // Load immediately (firefox + some browsers)
+    speechSynthesis.addEventListener('voiceschanged', loadVoices); // Chrome loads later
 
     return () => {
+      speechSynthesis.removeEventListener('voiceschanged', loadVoices);
       if (speechSynthesis.speaking) {
         speechSynthesis.cancel();
       }

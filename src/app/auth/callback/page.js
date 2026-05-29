@@ -9,12 +9,16 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       const { data, error } = await supabase.auth.getSession();
-      
+
+      if (error) {
+        console.error('Auth callback error:', error);
+        router.push('/sign-in');
+        return;
+      }
+
       if (data.session) {
-        // User is authenticated, redirect to dashboard
         router.push('/');
       } else {
-        // Something went wrong, redirect to sign in
         router.push('/sign-in');
       }
     };

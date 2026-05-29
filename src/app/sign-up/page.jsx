@@ -58,6 +58,15 @@ export default function SignUp() {
         }
 
         if (authData.user) {
+          // If Supabase requires email confirmation, no session is returned yet.
+          // The user can't insert into RLS-protected tables without a JWT, so bail out
+          // and tell them to confirm their email first.
+          if (!authData.session) {
+            alert("Account created! Please check your email to confirm your account, then sign in.");
+            router.push('/sign-in');
+            return;
+          }
+
           // Insert basic user data into custom users table (without name and avatar)
           const { error: insertError } = await supabase
             .from('users')

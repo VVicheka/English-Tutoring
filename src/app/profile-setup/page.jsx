@@ -46,18 +46,37 @@ export default function ProfileSetup() {
                     throw new Error('No authenticated user found');
                 }
 
-                // Update user profile in database
+                // Upsert so this works for first-time Google OAuth users and
+                // email-confirmation sign-ups (their `users` row may not exist yet)
                 const { error } = await supabase
                     .from('users')
-                    .update({
-                        name: formData.name.trim(),
-                        avatar_url: formData.avatar
-                    })
-                    .eq('id', user.id);
+                    .upsert(
+                        {
+                            id: user.id,
+                            name: formData.name.trim(),
+                            email: user.email,
+                            avatar_url: formData.avatar
+                        },
+                        { onConflict: 'id' }
+                    );
 
                 if (error) {
                     throw error;
                 }
+
+                // Ensure a user_progress row exists (no-op if already present)
+                await supabase
+                    .from('user_progress')
+                    .upsert(
+                        {
+                            user_id: user.id,
+                            total_lessons_completed: 0,
+                            total_units_completed: 0,
+                            total_quizzes_completed: 0,
+                            total_best_score: 0
+                        },
+                        { onConflict: 'user_id', ignoreDuplicates: true }
+                    );
 
                 console.log("Profile setup complete:", formData);
                 router.push('/');

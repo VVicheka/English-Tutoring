@@ -362,9 +362,9 @@ export const DragableMatchingActivity = ({ content, onComplete }) => {
             
             {/* Progress Bar */}
             <div className="w-24 bg-gray-200 rounded-full h-2 overflow-hidden border border-gray-300">
-              <div 
-                className="bg-gradient-to-r from-green-400 to-green-600 h-full rounded-full ${DESIGN.transitions}"
-                style={{ 
+              <div
+                className={`bg-gradient-to-r from-green-400 to-green-600 h-full rounded-full ${DESIGN.transitions}`}
+                style={{
                   width: `${(correctMatches.size / content.activityA.pairs.length) * 100}%` 
                 }}
               ></div>

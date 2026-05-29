@@ -120,7 +120,6 @@ const courseStructure = [
 
 export default function DetailsPage() {
   const router = useRouter();
-  const [user, setUser] = useState(null);
   const [userProgress, setUserProgress] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -128,13 +127,11 @@ export default function DetailsPage() {
     const checkAuth = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         if (!user) {
           router.push('/sign-in');
           return;
         }
-
-        setUser(user);
 
         // Fetch user progress for all lessons
         const { data: progressData } = await supabase

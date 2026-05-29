@@ -40,6 +40,24 @@ function stripCodeFence(text) {
   return clean.trim();
 }
 
+function parseGeminiJSON(text) {
+  const cleaned = stripCodeFence(text);
+  try {
+    return JSON.parse(cleaned);
+  } catch (err) {
+    // Gemini sometimes adds prose around the JSON — try to extract the first {...} block
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch {
+        // fall through
+      }
+    }
+    throw new Error(`Failed to parse Gemini response as JSON: ${err.message}`);
+  }
+}
+
 async function callGemini(prompt) {
   const model = genAI.getGenerativeModel({ model: MODEL_NAME });
   const result = await model.generateContent(prompt);
@@ -221,7 +239,7 @@ RESPONSE FORMAT - Return ONLY JSON:
 Make ${totalQuestions} DIFFERENT questions now. Return ONLY the JSON.`;
 
   const rawText = await callGemini(prompt);
-  const quizData = JSON.parse(stripCodeFence(rawText));
+  const quizData = parseGeminiJSON(rawText);
 
   return {
     questions: quizData.questions || [],
@@ -321,20 +339,28 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 Create ${totalQuestions} ${levelConfig.label.toLowerCase()}-difficulty questions now. Return ONLY the JSON.`;
 
   const rawText = await callGemini(prompt);
-  const quizData = JSON.parse(stripCodeFence(rawText));
+  const quizData = parseGeminiJSON(rawText);
   return {
     questions: quizData.questions || [],
     meta: { timestamp, level, randomSeed }
   };
 }
 
-export async function generateQuizFeedback(correct, total) {
+export async function generateQuizFeedback(correct, total, incorrectQuestions = []) {
   const percentage = (correct / total) * 100;
+
+  const missedSection = incorrectQuestions.length > 0
+    ? `\n\nQUESTIONS THEY MISSED (mention 1-2 of these gently if natural):\n${incorrectQuestions
+        .slice(0, 5)
+        .map(q => `- "${q.question}" → correct: ${q.correctAnswer} (they said: ${q.userAnswer || 'nothing'})`)
+        .join('\n')}`
+    : '';
+
   const prompt = `You are a kind teacher. A 5-7 year old student just finished a quiz.
 
 RESULTS:
 - Got ${correct} out of ${total} correct
-- Score: ${percentage.toFixed(0)}%
+- Score: ${percentage.toFixed(0)}%${missedSection}
 
 Write 2-3 VERY SIMPLE encouraging sentences using easy words.
 Add 1-2 emojis.

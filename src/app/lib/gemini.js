@@ -1,7 +1,14 @@
+import { supabase } from "./supabase";
+
 async function postJSON(url, body) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers = { "Content-Type": "application/json" };
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
+  }
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body)
   });
   if (!res.ok) {
@@ -29,8 +36,8 @@ export async function generateChallengeQuiz(level = "medium") {
   return data.questions;
 }
 
-export async function generateQuizFeedback(correct, total) {
-  const data = await postJSON("/api/quiz/feedback", { correct, total });
+export async function generateQuizFeedback(correct, total, incorrectQuestions = []) {
+  const data = await postJSON("/api/quiz/feedback", { correct, total, incorrectQuestions });
   safeSetItem("last_ai_feedback", {
     timestamp: new Date().toISOString(),
     feedback: data.feedback,

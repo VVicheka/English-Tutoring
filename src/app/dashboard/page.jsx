@@ -65,40 +65,40 @@ const CircularProgress = ({ value, max, label, sublabel, color }) => {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
   const [userProgress, setUserProgress] = useState([]);
+  const [bestQuizScores, setBestQuizScores] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         if (!user) {
           router.push('/sign-in');
           return;
         }
 
-        setUser(user);
+        // Fetch lesson progress and quiz completion in parallel
+        const [lessonRes, quizRes] = await Promise.all([
+          supabase.from('user_lesson').select('*').eq('user_id', user.id),
+          supabase
+            .from('personalized_quiz')
+            .select('quiz_type, score')
+            .eq('user_id', user.id)
+            .eq('is_completed', true)
+            .in('quiz_type', ['quiz1', 'quiz2', 'quiz3'])
+        ]);
 
-        // Fetch user profile
-        const { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', user.id)
-          .single();
+        setUserProgress(lessonRes.data || []);
 
-        setUserProfile(profile);
-
-        // Fetch lesson progress
-        const { data: lessonProgress } = await supabase
-          .from('user_lesson')
-          .select('*')
-          .eq('user_id', user.id);
-
-        setUserProgress(lessonProgress || []);
-
+        const best = {};
+        (quizRes.data || []).forEach(q => {
+          if (!best[q.quiz_type] || q.score > best[q.quiz_type]) {
+            best[q.quiz_type] = q.score;
+          }
+        });
+        setBestQuizScores(best);
       } catch (error) {
         console.error('Error loading dashboard:', error);
       } finally {
@@ -131,7 +131,7 @@ export default function DashboardPage() {
 
   const completedLessons = userProgress.filter(p => p.is_completed && typeof p.lesson_id === 'number').length;
   const totalLessons = 12;
-  const completedExams = 0; // You can update this based on quiz completion data
+  const completedExams = Object.keys(bestQuizScores).length;
   const totalExams = 3;
 
   return (
@@ -184,10 +184,11 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {allLessonsAndQuizzes.map((item, index) => {
+                {allLessonsAndQuizzes.map((item) => {
                   const progress = userProgress.find(p => p.lesson_id === item.id);
-                  const isCompleted = progress?.is_completed || false;
-                  const bestScore = progress?.best_score || 0;
+                  const quizScore = item.type === 'exam' ? bestQuizScores[item.id] : undefined;
+                  const isCompleted = quizScore !== undefined || progress?.is_completed || false;
+                  const bestScore = quizScore !== undefined ? quizScore : (progress?.best_score || 0);
                   const remark = getRemark(bestScore);
 
                   return (

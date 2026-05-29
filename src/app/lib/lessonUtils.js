@@ -162,8 +162,14 @@ export function calculateOverallProgress(userProgress, totalLessons = 12) {
  * @returns {number|null} - Next lesson ID or null if all completed
  */
 export function getNextRecommendedLesson(userProgress) {
+  // If all 12 lessons are completed, there's no next lesson
+  const completedCount = (userProgress || []).filter(
+    p => p.is_completed && typeof p.lesson_id === 'number' && p.lesson_id >= 1 && p.lesson_id <= 12
+  ).length;
+  if (completedCount >= 12) return null;
+
   const highestUnlocked = getHighestUnlockedLesson(userProgress);
-  
+
   // Find the first incomplete lesson that's unlocked
   for (let lessonId = 1; lessonId <= highestUnlocked && lessonId <= 12; lessonId++) {
     const progress = userProgress?.find(p => p.lesson_id === lessonId);
@@ -171,11 +177,7 @@ export function getNextRecommendedLesson(userProgress) {
       return lessonId;
     }
   }
-  
-  // All unlocked lessons are completed
-  if (highestUnlocked <= 12) {
-    return highestUnlocked; // Return the next locked lesson
-  }
-  
-  return null; // All lessons completed
+
+  // All unlocked lessons are completed but more remain — point to the next locked one
+  return highestUnlocked <= 12 ? highestUnlocked : null;
 }

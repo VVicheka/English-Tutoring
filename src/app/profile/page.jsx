@@ -28,6 +28,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [userProgress, setUserProgress] = useState([]);
+  const [bestQuizScores, setBestQuizScores] = useState({});
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [showInfo, setShowInfo] = useState(true); // toggled by "v" button
@@ -53,11 +54,25 @@ export default function ProfilePage() {
         setUserProfile(profile);
         setFormData({ name: profile?.name || "", email: user.email || "" });
 
-        const { data: lessonProgress } = await supabase
-          .from("user_lesson")
-          .select("*")
-          .eq("user_id", user.id);
-        setUserProgress(lessonProgress || []);
+        const [lessonRes, quizRes] = await Promise.all([
+          supabase.from("user_lesson").select("*").eq("user_id", user.id),
+          supabase
+            .from("personalized_quiz")
+            .select("quiz_type, score")
+            .eq("user_id", user.id)
+            .eq("is_completed", true)
+            .in("quiz_type", ["quiz1", "quiz2", "quiz3"])
+        ]);
+
+        setUserProgress(lessonRes.data || []);
+
+        const best = {};
+        (quizRes.data || []).forEach(q => {
+          if (!best[q.quiz_type] || q.score > best[q.quiz_type]) {
+            best[q.quiz_type] = q.score;
+          }
+        });
+        setBestQuizScores(best);
       } catch (error) {
         console.error("Error loading profile:", error);
       } finally {
@@ -97,7 +112,7 @@ export default function ProfilePage() {
   const totalLessons = allLessonsAndQuizzes.filter((i) => i.type === "lesson").length;
   const totalExams = allLessonsAndQuizzes.filter((i) => i.type === "exam").length;
   const completedLessons = userProgress.filter((p) => p.is_completed && typeof p.lesson_id === "number").length;
-  const completedExams = userProgress.filter((p) => p.is_completed && typeof p.lesson_id === "string").length;
+  const completedExams = Object.keys(bestQuizScores).length;
 
   // Circular Progress Component (amber like before)
   const CircularProgress = ({ value, max, label, color = "#FCD34D" }) => {
@@ -322,8 +337,9 @@ export default function ProfilePage() {
               <tbody>
                 {allLessonsAndQuizzes.map((item) => {
                   const progress = userProgress.find((p) => p.lesson_id === item.id);
-                  const isCompleted = progress?.is_completed || false;
-                  const bestScore = progress?.best_score || 0;
+                  const quizScore = item.type === "exam" ? bestQuizScores[item.id] : undefined;
+                  const isCompleted = quizScore !== undefined || progress?.is_completed || false;
+                  const bestScore = quizScore !== undefined ? quizScore : (progress?.best_score || 0);
                   const remark = getRemark(bestScore);
 
                   return (
