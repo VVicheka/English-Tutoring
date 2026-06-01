@@ -33,6 +33,12 @@ export default function SignUp() {
     return "";
   }
 
+  const getErrorMessage = (error) => {
+    if (!error) return 'Unknown error';
+    if (typeof error === 'string') return error;
+    return error.message || error.error_description || 'Unknown error';
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -67,52 +73,24 @@ export default function SignUp() {
             return;
           }
 
-          // Insert basic user data into custom users table (without name and avatar)
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert([
-              {
-                id: authData.user.id,
-                name: '', // Will be filled in profile setup
-                email: email,
-                avatar_url: null, // Will be filled in profile setup
-                google_id: null
-              }
-            ]);
-
-          if (insertError) {
-            console.error('Error inserting user data:', insertError);
-            throw new Error('Failed to create user profile');
-          }
-
-          // Create initial user progress
-          await supabase
-            .from('user_progress')
-            .insert([
-              {
-                user_id: authData.user.id,
-                total_lessons_completed: 0,
-                total_units_completed: 0,
-                total_quizzes_completed: 0,
-                total_best_score: 0
-              }
-            ]);
-
           alert("Account created successfully!");
-          // Redirect to profile setup instead of sign-in
+          // Create profile details in profile setup (handles user/profile upserts)
           router.push('/profile-setup');
         }
       } catch (error) {
         console.error('Error creating account:', error);
-        if (error.message.includes('already registered')) {
+        const message = getErrorMessage(error);
+        if (message.toLowerCase().includes('already registered')) {
           setEmailError('An account with this email already exists');
         } else {
-          alert('Error creating account: ' + error.message);
+          alert('Error creating account: ' + message);
         }
+      } finally {
+        setIsLoading(false);
       }
+    } else {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   }
 
   return (
