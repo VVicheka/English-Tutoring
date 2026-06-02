@@ -44,6 +44,7 @@ export const CreativeQuizActivity = ({
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // Reset selection when step changes
   useEffect(() => {
@@ -51,6 +52,7 @@ export const CreativeQuizActivity = ({
     setShowResult(false);
     setIsCorrect(false);
     setIsProcessing(false);
+    setImageError(false);
   }, [currentStep]);
 
   // Load completed step data
@@ -78,6 +80,7 @@ export const CreativeQuizActivity = ({
   }, [completedSteps, content, onComplete]);
 
   const currentAction = content.actions[currentStep];
+  const currentImage = content.actionImages?.[currentStep];
   const stepData = completedSteps[currentStep];
   const isCompleted = !!stepData;
 
@@ -164,12 +167,21 @@ export const CreativeQuizActivity = ({
                 onClick={handleActionClick}
                 className={`text-center cursor-pointer ${DESIGN.transitions} transform hover:scale-105 w-full`}
               >
-                {/* Image Placeholder - Smaller */}
-                <div className="w-full max-w-[200px] mx-auto aspect-square bg-gradient-to-br from-green-100 to-blue-100 rounded-xl flex items-center justify-center mb-3 border-2 border-white shadow-md">
-                  <div className="text-center">
-                    <div className="text-4xl mb-1">🖼️</div>
-                    <p className="text-xs text-gray-600 font-medium">Action</p>
-                  </div>
+                {/* Action Image */}
+                <div className="w-full max-w-[200px] mx-auto aspect-square bg-gradient-to-br from-green-100 to-blue-100 rounded-xl flex items-center justify-center mb-3 border-2 border-white shadow-md overflow-hidden">
+                  {currentImage && !imageError ? (
+                    <img
+                      src={currentImage}
+                      alt={`Action: ${currentAction}`}
+                      className="w-full h-full object-contain p-3"
+                      onError={() => setImageError(true)}
+                    />
+                  ) : (
+                    <div className="text-center">
+                      <div className="text-4xl mb-1">🖼️</div>
+                      <p className="text-xs text-gray-600 font-medium">Action</p>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Action Text - Compact */}

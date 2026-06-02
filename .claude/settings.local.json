@@ -8,7 +8,9 @@
       "PowerShell(Get-ChildItem -Path \"D:\\\\Y4 Final\\\\English-Tutoring\\\\src\" -Recurse -Force | Where-Object {$_.PSIsContainer -eq $false} | Select-Object FullName | ForEach-Object {$_.FullName.Replace\\(\"D:\\\\Y4 Final\\\\English-Tutoring\\\\\", \"\"\\)} | Sort-Object)",
       "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && grep -A 15 \"playCorrectSound.*=\" {} | head -20')",
       "Bash(Remove-Item \"D:\\\\Y4 Final\\\\English-Tutoring\\\\src\\\\app\\\\lesson\\\\components\\\\speakableComponents.jsx\")",
-      "Bash(Remove-Item \"D:\\\\Y4 Final\\\\English-Tutoring\\\\src\\\\app\\\\lesson\\\\components\\\\MiniStoryActivity.jsx\")"
+      "Bash(Remove-Item \"D:\\\\Y4 Final\\\\English-Tutoring\\\\src\\\\app\\\\lesson\\\\components\\\\MiniStoryActivity.jsx\")",
+      "Bash(command -v python)",
+      "Bash(command -v node)"
     ]
   }
 }

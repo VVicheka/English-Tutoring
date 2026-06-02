@@ -72,7 +72,14 @@ export default function SignIn() {
 
         if (data.user) {
           console.log("Successfully signed in:", data.user);
-          router.push('/'); // Redirect to dashboard/home page
+          // Honor a ?redirect= target (e.g. continuing to the next lesson),
+          // falling back to the home/dashboard page.
+          let redirectTo = '/';
+          try {
+            const param = new URLSearchParams(window.location.search).get('redirect');
+            if (param && param.startsWith('/')) redirectTo = param;
+          } catch (_) {}
+          router.push(redirectTo);
         }
       } catch (error) {
         console.error('Error signing in:', error);

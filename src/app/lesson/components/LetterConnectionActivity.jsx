@@ -138,6 +138,7 @@ export const LetterConnectionActivity = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   
   // Drag state
   const [isDrawing, setIsDrawing] = useState(false);
@@ -157,6 +158,7 @@ export const LetterConnectionActivity = ({
   const currentQuestion = useMemo(() => {
     return content?.activityB?.questions?.[currentStep];
   }, [content, currentStep]);
+  const currentImage = currentQuestion?.image || content?.activityB?.images?.[currentStep];
 
   // Generate letter positions
   const generateLetterPositions = (letters) => {
@@ -241,6 +243,7 @@ export const LetterConnectionActivity = ({
     setDragPath([]);
     setIsProcessing(false);
     setShowHint(stepData ? !stepData.isCorrect : false);
+    setImageError(false);
   }, [currentStep, currentQuestion, hasLoaded, storageKey, stepData]);
 
   // Save state
@@ -533,12 +536,21 @@ export const LetterConnectionActivity = ({
         {/* Left Side - Sentence (40%) */}
         <div className="flex-1 lg:w-[40%] min-w-0 min-h-0 overflow-hidden">
           <div className={`${DESIGN.colors.card} rounded-2xl ${DESIGN.spacing.compact} h-full flex flex-col ${DESIGN.shadows.card}`}>
-            {/* Image Placeholder - Compact */}
-            <div className="w-full h-20 flex-shrink-0 bg-gradient-to-br from-orange-100 via-yellow-100 to-amber-100 rounded-xl flex items-center justify-center mb-3 border-2 border-white">
-              <div className="text-center">
-                <div className="text-2xl mb-1">🖼️</div>
-                <p className="text-xs font-medium text-gray-600">Word: {currentQuestion.answer}</p>
-              </div>
+            {/* Image */}
+            <div className="w-full h-40 lg:h-48 flex-shrink-0 bg-gradient-to-br from-orange-100 via-yellow-100 to-amber-100 rounded-xl flex items-center justify-center mb-3 border-2 border-white overflow-hidden">
+              {currentImage && !imageError ? (
+                <img
+                  src={currentImage}
+                  alt={`Word: ${currentQuestion.answer}`}
+                  className="w-full h-full object-contain p-2"
+                  onError={() => setImageError(true)}
+                />
+              ) : (
+                <div className="text-center">
+                  <div className="text-2xl mb-1">🖼️</div>
+                  <p className="text-xs font-medium text-gray-600">Word: {currentQuestion.answer}</p>
+                </div>
+              )}
             </div>
             
             {/* Sentence - Takes remaining space */}

@@ -47,12 +47,13 @@ export const lessonData = {
           title: "Activity B - Fill-in-the-Blank",
           type: "fill-blank",
           instruction: "Write the word or say it aloud.",
+          images: ["/fillin1-1.svg", "/fillin1-2.svg", "/fillin1-3.svg", "/fillin1-4.svg", "/fillin1-5.svg"],
           questions: [
-            { sentence: "The ____ is black.", answer: "cat" },
-            { sentence: "She wears a red ____.", answer: "hat" },
-            { sentence: "I see a ____.", answer: "bat" },
-            { sentence: "The ____ is on the table.", answer: "map" },
-            { sentence: "The bat is on the ____.", answer: "mat" }
+            { sentence: "The ____ is black.", answer: "cat", image: "/fillin1-1.svg" },
+            { sentence: "She wears a red ____.", answer: "hat", image: "/fillin1-2.svg" },
+            { sentence: "I see a ____.", answer: "bat", image: "/fillin1-3.svg" },
+            { sentence: "The ____ is on the table.", answer: "map", image: "/fillin1-4.svg" },
+            { sentence: "The bat is on the ____.", answer: "mat", image: "/fillin1-5.svg" }
           ]
         }
       },
@@ -68,6 +69,7 @@ export const lessonData = {
           { name: "Tina the Tiger", emoji: "🐯" }
         ],
         actions: ["Found the map", "Sat on the hat", "Flew with the bat", "Played with the cat", "Slept on the mat"],
+        actionImages: ["/cquiz1-3.svg", "/cquiz1-1.svg", "/cquiz1-5.svg", "/cquiz1-4.svg", "/cquiz1-2.svg"],
         answers: {
           "Ellie the Elephant": "Sat on the hat",
           "Benny the Bear": "Slept on the mat", 

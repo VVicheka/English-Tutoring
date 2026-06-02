@@ -16,6 +16,7 @@ export default function LessonCompletePage() {
   const [saving, setSaving] = useState(false);
   const [userProgress, setUserProgress] = useState([]);
   const [canUnlockNext, setCanUnlockNext] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // ✅ Use ref to prevent double save
   const hasSavedRef = useRef(false);
@@ -187,6 +188,7 @@ export default function LessonCompletePage() {
       // Get user and fetch progress
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        setIsAuthenticated(!!user);
         if (user) {
           await fetchUserProgress(user.id);
         }
@@ -239,12 +241,13 @@ export default function LessonCompletePage() {
       return;
     }
 
-    // Check if next lesson is actually unlocked (should be after save)
-    if (!canUnlockNext) {
-      alert('The next lesson is not yet unlocked. Please ensure you scored at least 50 points! 🔒');
+    // Require sign-in to progress beyond the current lesson so progress is saved.
+    if (!isAuthenticated) {
+      alert('Please sign in to unlock and continue to the next lesson! 🔐');
+      router.push(`/sign-in?redirect=/lesson/${nextLessonId}`);
       return;
     }
-    
+
     try { localStorage.removeItem(`lesson_${lessonId}_scores`); } catch (_) {}
     router.push(`/lesson/${nextLessonId}`);
   };

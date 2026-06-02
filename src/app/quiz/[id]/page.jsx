@@ -532,7 +532,12 @@ export default function QuizPage() {
         </div>
 
         {/* Question Component */}
+        {/* key forces a fresh mount per question so the component's internal
+            selected/revealed state re-initializes from props — otherwise a
+            previously "revealed" question leaves options disabled with no way
+            to answer or continue. */}
         <MultipleChoiceQuestion
+          key={currentQuestion}
           question={question.question}
           options={question.options}
           correctAnswer={question.correctAnswer}
